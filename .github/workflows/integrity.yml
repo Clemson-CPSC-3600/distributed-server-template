@@ -1,0 +1,46 @@
+name: Capture Integrity (informational)
+
+# Runs the integrity check on every push, but never fails the workflow run.
+# Rationale: a green/red status check on a student's push is too easy to read
+# as "you cheated" when in fact the student may have accidentally edited a
+# pinned file (e.g., autosaved AGENTS.md while reading it). The check still
+# detects modifications -- the result is captured as a workflow annotation
+# and as a step output for instructor-side tooling to consume -- but no
+# status check is published, so students don't see scary red badges.
+#
+# Instructors monitor this signal via the cron mirror's anomaly detection,
+# which reads workflow run outputs across student repos.
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify capture-layer files unchanged
+        id: integrity
+        continue-on-error: true
+        run: |
+          if python tools/verify_integrity.py > integrity.out 2>&1; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+            cat integrity.out
+          else
+            echo "status=modified" >> "$GITHUB_OUTPUT"
+            cat integrity.out
+            # Emit a workflow annotation visible in the run summary, but do
+            # not fail the workflow.
+            echo "::warning title=Capture-layer file modified::Review integrity.out artifact for details"
+          fi
+      - name: Upload integrity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integrity-report
+          path: integrity.out
+          retention-days: 30

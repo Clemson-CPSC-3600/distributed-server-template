@@ -1,0 +1,16 @@
+External AI tool usage attestation
+===================================
+
+If you used any AI tool that is NOT locally captured by this repo
+(ChatGPT in a browser, Claude.ai, Cursor, GitHub Copilot Chat, etc.)
+during this assignment, log it here. One entry per session is enough;
+include the tool, what you asked, and what came back at a high level.
+
+Format suggestion:
+  YYYY-MM-DD HH:MM | tool name | brief description of the interaction
+
+If you did NOT use any uncaptured AI tools during this assignment,
+write "no uncaptured AI use" below and nothing else.
+
+----- begin entries -----
+

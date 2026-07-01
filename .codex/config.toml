@@ -1,0 +1,24 @@
+# Codex configuration for this course repository.
+#
+# Codex reads this file when your current working directory is inside this
+# repo. Your global ~/.codex/config.toml still applies for anything NOT set
+# here (login credentials, default editor, etc.) — this file only overrides
+# the settings below.
+
+# Require Codex to ask before running shell commands or editing files.
+# This is slower than "never" but gives you a chance to see what Codex is
+# about to do before it happens. Don't reflexively accept — read the plan.
+approval_policy = "on-request"
+
+# Restrict filesystem writes to this workspace. Codex cannot edit files
+# outside the repo without escalating to you first.
+sandbox = "workspace-write"
+
+# Default reasoning effort. "medium" is a sensible baseline for coursework;
+# raise to "high" for harder problems, lower to "low" for quick syntax help.
+model_reasoning_effort = "medium"
+
+# Feature flag: let Codex pick up nested AGENTS.md files in assignment
+# subdirectories if your instructor ships them.
+[features]
+child_agents_md = true

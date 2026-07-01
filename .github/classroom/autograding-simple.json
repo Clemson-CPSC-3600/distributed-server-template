@@ -1,0 +1,14 @@
+{
+  "tests": [
+    {
+      "name": "Project Implementation (specification grading)",
+      "setup": "pip install -r requirements.txt",
+      "run": "python run_tests.py",
+      "input": "",
+      "output": "",
+      "comparison": "included",
+      "timeout": 5,
+      "points": 100
+    }
+  ]
+}
