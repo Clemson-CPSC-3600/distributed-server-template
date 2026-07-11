@@ -56,6 +56,13 @@ def detect_orphans(repo: Path) -> List[Dict]:
     for marker in d.glob("*.json"):
         try:
             data = json.loads(marker.read_text())
+            # This directory is shared: run_tests.py caches its grade rollup
+            # here as last_bundle_status.json. Only genuine session markers
+            # carry a session_id, so ignore any JSON that lacks one — otherwise
+            # a foreign file gets "recovered" as an orphan and clear_orphans
+            # later KeyErrors on its missing session_id.
+            if not isinstance(data, dict) or "session_id" not in data:
+                continue
             deadline = data.get("started_at", 0) + data.get("hard_deadline_seconds", 0)
             if now > deadline:
                 orphans.append(data)
@@ -68,7 +75,10 @@ def detect_orphans(repo: Path) -> List[Dict]:
 def clear_orphans(repo: Path, orphans: List[Dict]) -> None:
     d = _state_dir(repo)
     for o in orphans:
-        marker = d / f"{o['session_id']}.json"
+        sid = o.get("session_id")
+        if not sid:
+            continue
+        marker = d / f"{sid}.json"
         try:
             marker.unlink()
         except FileNotFoundError:
