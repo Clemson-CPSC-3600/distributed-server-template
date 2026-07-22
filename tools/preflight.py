@@ -78,12 +78,23 @@ def _git_remote_url(repo: Path) -> Optional[str]:
     return url or None
 
 
-def _git_credential_helper(repo: Path) -> str:
+def _git_credential_helper(repo: Path, remote_url: str) -> str:
+    """Return the effective credential helper for one HTTPS remote URL."""
+
     try:
-        result = _run_git(["config", "--get", "credential.helper"], cwd=repo)
+        result = _run_git(
+            ["config", "--get-urlmatch", "credential.helper", remote_url],
+            cwd=repo,
+        )
     except (subprocess.SubprocessError, OSError):
         return ""
     return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _remote_requires_credential_helper(remote_url: str) -> bool:
+    """Return whether ``remote_url`` relies on Git's credential helpers."""
+
+    return remote_url.lower().startswith(("http://", "https://"))
 
 
 def _running_in_ci() -> bool:
@@ -147,13 +158,18 @@ def check_environment(repo: Path) -> List[str]:
     # also skip the credential-helper check because the checkout action
     # configures token auth via http.extraheader, not credential.helper.
     if (repo / ".git").exists() and _capture_enabled(repo):
-        if _git_remote_url(repo) is None:
+        remote_url = _git_remote_url(repo)
+        if remote_url is None:
             failures.append(
                 "No git remote `origin` is configured. Test snapshots can't "
                 "be uploaded.\n"
                 "    Run:  python tools/setup_credentials.py"
             )
-        if not _git_credential_helper(repo) and not _running_in_ci():
+        elif (
+            _remote_requires_credential_helper(remote_url)
+            and not _git_credential_helper(repo, remote_url)
+            and not _running_in_ci()
+        ):
             failures.append(
                 "Git credential helper is not configured. Pushes will fail "
                 "or hang.\n"

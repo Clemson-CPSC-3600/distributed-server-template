@@ -26,7 +26,10 @@ Files under `src/`, `tests/`, and `.ai-traces/` are staged into the commit, alon
 
 Local AI-agent traces (`.ai-traces/**/*.jsonl`) are also captured when present. Codex CLI sessions land under `.ai-traces/codex/`, Claude Code sessions under `.ai-traces/claude/`, and VS Code chat-panel sessions (GitHub Copilot Chat and similar) under `.ai-traces/vscode_chat/`. Each adapter pulls from the agent's per-user storage (`~/.codex/sessions/`, `~/.claude/projects/`, and VS Code's `workspaceStorage/<id>/chatSessions/`) and filters by the repo's path. The Codex and Claude adapters parse events into the merged `.ai-traces/interaction-stream.jsonl`; the VS Code chat adapter stores the raw session JSONL only because VS Code's mutation-log format changes between releases. See [AI_POLICY.md](AI_POLICY.md) for the full AI policy.
 
-**Nothing outside the project directory is captured. No credentials, no browsing history, no system information.**
+**Nothing outside the project directory is copied into the snapshot.** No
+credentials or browsing history are captured. The limited environment metadata
+listed above—Python version, OS type, and a one-way hostname hash—is recorded
+with each snapshot.
 
 ## What is NOT captured
 

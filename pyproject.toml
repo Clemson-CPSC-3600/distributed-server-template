@@ -1,9 +1,9 @@
 [project]
-name = "class-project-starter"
+name = "cpsc3600-distributed-server-network"
 version = "0.1.0"
-description = "A Python project starter template for introductory programming"
+description = "CPSC 3600 Clemson Relay Chat distributed-server-network project"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 
 [build-system]
@@ -18,10 +18,11 @@ addopts = [
     "--strict-markers",
     # thread method is cross-platform; signal method fails on Windows.
     # Thread can't interrupt C-level blocks; the watchdog covers that.
-    # INSTRUCTOR: calibrate --timeout per assignment before release.
-    # 30s is a generic ceiling; tune to ~3-5x the reference solution's
-    # slowest test. See CLAUDE.md "Calibrate timeout" section.
-    "--timeout=30",
+    # These threaded multi-server scenarios are slow: the 20-scenario
+    # reference run takes >100s, so a single scenario needs generous
+    # headroom. 120s per test is a safe ceiling for the largest
+    # (eleven-server) scenarios.
+    "--timeout=120",
     "--timeout-method=thread",
 ]
 markers = [
