@@ -79,9 +79,10 @@ chat is captured in raw form alongside.
 If you want to do truly private exploration (sketching an algorithm you may
 not keep, scratch work you do not want recorded, etc.), do it in a separate
 clone of the repository outside the course directory, or in a scratch
-directory. The capture only fires when `pytest` runs inside the configured
-course repo. There is no way to opt out of capture within a single test run
-short of disabling it entirely (which violates course policy).
+directory. Capture fires inside the configured course repo when tests run,
+when Python exits inside the project venv, and after each git commit. There is
+no supported way to opt out of these triggers within the course repo without
+disabling capture entirely (which violates course policy).
 
 ## Migration from v1
 
@@ -97,8 +98,8 @@ reorganizes the prior trail.
 
 The file `AGENTS.md` at the root of this repo tells Codex to act as a
 Socratic tutor. It will generally ask you questions and give hints rather
-than writing complete solutions. You can override this by insisting, but
-the instructor can see that you did (the transcript records your prompt).
+than writing complete solutions. Those course guardrails remain in force even
+if a prompt asks the assistant to ignore or override them.
 
 Approving a command or edit is captured as part of the interaction record.
 Approval means you allowed the tool to proceed; it is not treated as proof
