@@ -22,6 +22,51 @@ protocol handles are clients registering, clients quitting, and error-status
 replies. (A Server Quit message, `0x02`, exists in the parser as optional extra
 credit and is not exercised by the graded scenarios.)
 
+### Simulated network layout
+
+The test scenarios grow one topology incrementally -- the largest runs bring up
+all **11 servers and 8 clients** below, staged over time so the harness can check
+the network at different sizes. Server-to-server links are solid; each client
+(dashed) attaches to exactly one server. There is a single path between any two
+nodes -- that spanning tree is what your routing walks, one `first_link` hop at a
+time.
+
+```mermaid
+graph TD
+    S1["server 1: theshire"]
+    S2["server 2: rivendale"]
+    S3["server 3: grey_havens"]
+    S4["server 4: lothlorien"]
+    S5["server 5: moria"]
+    S6["server 6: edoras"]
+    S7["server 7: minastirith"]
+    S8["server 8: mirkwood"]
+    S9["server 9: isengard"]
+    S10["server 10: osgiliath"]
+    S11["server 11: barad-dur"]
+    S1 --- S3
+    S1 --- S2
+    S2 --- S5
+    S2 --- S4
+    S2 --- S8
+    S4 --- S6
+    S4 --- S7
+    S6 --- S9
+    S7 --- S10
+    S7 --- S11
+    C101(["client 101: frodobaggins"]) -.- S1
+    C102(["client 102: samgamgee"]) -.- S1
+    C103(["client 103: elrond"]) -.- S2
+    C104(["client 104: bilbobaggins"]) -.- S3
+    C107(["client 107: balin"]) -.- S5
+    C105(["client 105: peregrin"]) -.- S4
+    C106(["client 106: meriadoc"]) -.- S6
+    C108(["client 108: sauron"]) -.- S11
+```
+
+Every machine (server or client) picks a random 32-bit id on joining, so your
+code must key all per-host state by id, never by position in the tree.
+
 ## Message types
 
 Every message begins with a one-byte message type, followed by fixed header
@@ -183,7 +228,69 @@ Your server must manage every connection with a single
 use threads; the test harness already runs each server in its own thread and
 your server must cooperate with a shared shutdown flag.
 
-Core rules:
+### Why non-blocking
+
+Most socket operations -- `recv()`, `accept()`, `connect()`, and in principle
+`send()` -- are *blocking*: the call does not return until it can complete. With
+a single connection that is fine, but a CRC server juggles many sockets at once,
+and blocking on one starves the rest. Say your server is watching two peers, A
+and B. If you call `A.recv()` while A has nothing to say, the whole server halts
+there -- even if B has a message waiting, and even if A is itself waiting on
+something B was about to send. The server deadlocks.
+
+A **selector** fixes this. You register every socket with the selector, then ask
+it which sockets are *ready* before you touch them. You only ever call
+`recv`/`send` on a socket the selector just reported as readable/writable, so no
+individual call blocks.
+
+### The pattern
+
+Create one selector (do this in `__init__`):
+
+```python
+import selectors
+self.sel = selectors.DefaultSelector()
+```
+
+Register each socket non-blocking, declaring whether you care about reading,
+writing, or both, and attach a data object that carries this connection's state.
+In this project that object is a `BaseConnectionData` / `ServerConnectionData` /
+`ClientConnectionData`, and its `write_buffer` holds bytes queued to send. The
+listening socket is registered with `data=None` so you can tell it apart:
+
+```python
+sock.setblocking(False)
+events = selectors.EVENT_READ | selectors.EVENT_WRITE   # or just EVENT_READ
+self.sel.register(sock, events, connection_data)
+```
+
+Drive everything from one loop. `select()` hands back the ready sockets plus a
+mask of what each is ready for; act only on those:
+
+```python
+for io_device, event_mask in self.sel.select(timeout=0.1):
+    sock = io_device.fileobj
+    data = io_device.data
+    if event_mask & selectors.EVENT_READ:
+        recv_data = sock.recv(4096)
+        if recv_data:
+            self.handle_messages(io_device, recv_data)
+        else:                                            # empty read = peer closed
+            self.sel.unregister(sock); sock.close()
+    if event_mask & selectors.EVENT_WRITE:
+        if data.write_buffer:                            # only send when there is something
+            sent = sock.send(data.write_buffer)
+            data.write_buffer = data.write_buffer[sent:] # keep only what wasn't sent
+```
+
+Two things that trip students up: (1) `select()` almost always reports a socket
+as writable, so you **must** check `write_buffer` is non-empty before sending and
+trim it afterward, or you will spin sending empty/duplicate bytes; (2) the short
+`timeout` matters -- it lets the loop surface each pass to check the shared
+`request_terminate` flag instead of blocking forever inside `select()`. When you
+are done with a socket, unregister and close it; close the selector on shutdown.
+
+### Checklist
 
 1. Create the selector in `__init__` (`self.sel`). Register the listening socket
    for `EVENT_READ` with a data value of `None` so you can tell it apart from
