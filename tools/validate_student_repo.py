@@ -3,10 +3,27 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+
+def _starter_manifest(directory: Path) -> dict[str, str]:
+    """Return stable hashes for distributable starter files in ``directory``."""
+
+    if not directory.exists():
+        return {}
+    manifest = {}
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(directory)
+        if "__pycache__" in relative.parts or path.suffix == ".pyc":
+            continue
+        manifest[relative.as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return manifest
 
 
 def main() -> int:
@@ -33,6 +50,38 @@ def main() -> int:
         solution_files = sorted(path.name for path in solution_dir.glob("*.py") if path.is_file())
         if solution_files:
             errors.append(f"solution/ still contains Python files: {', '.join(solution_files)}")
+
+    if (root / ".codex" / "auth.json").exists():
+        errors.append(".codex/auth.json is present; authentication files must never be distributed")
+
+    template_dir = root / "template"
+    src_dir = root / "src"
+    if not template_dir.exists():
+        errors.append("template/ directory is missing")
+    if not src_dir.exists():
+        errors.append("src/ directory is missing")
+    if template_dir.exists() and src_dir.exists():
+        template_manifest = _starter_manifest(template_dir)
+        src_manifest = _starter_manifest(src_dir)
+        if template_manifest != src_manifest:
+            missing = sorted(set(template_manifest) - set(src_manifest))
+            unexpected = sorted(set(src_manifest) - set(template_manifest))
+            changed = sorted(
+                path
+                for path in set(template_manifest) & set(src_manifest)
+                if template_manifest[path] != src_manifest[path]
+            )
+            details = []
+            if missing:
+                details.append("missing: " + ", ".join(missing))
+            if unexpected:
+                details.append("unexpected: " + ", ".join(unexpected))
+            if changed:
+                details.append("changed: " + ", ".join(changed))
+            errors.append(
+                "src/ does not match template/ starter content; regenerate the "
+                "student repository (" + "; ".join(details) + ")"
+            )
 
     removed_marker = root / ".removed-for-students"
     if removed_marker.exists():

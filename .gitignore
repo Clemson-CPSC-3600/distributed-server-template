@@ -229,3 +229,12 @@ __marimo__/
 # because they are shipped by the instructor. This single exclusion protects
 # only the auth blob.
 .codex/auth.json
+
+# CRC test harness ephemeral output. CRCTestManager redirects each scenario's
+# stdout to Logs/<scenario>.log, and servers/clients may emit per-host
+# --log-file output to a Logs/ directory beside their own source. None of this
+# belongs in shared history. (The golden reference logs live, tracked, in
+# crc_support/correct_logs/.)
+Logs/
+src/Logs/
+crc_support/Logs/

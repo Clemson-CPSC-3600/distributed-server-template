@@ -410,7 +410,7 @@ class BundleTestRunner:
         if self.verbose:
             cmd.extend(["-v", "--tb=short"])
         else:
-            cmd.extend(["-q", "--tb=no", "--no-header"])
+            cmd.extend(["-q", "--tb=no", "--no-header", "--no-summary"])
         cmd.extend(self.pytest_args)
         return cmd
 
@@ -502,6 +502,7 @@ class BundleTestRunner:
                         "file": filename,
                         "class": test_class,
                         "name": test_name,
+                        "nodeid": nodeid,
                         "passed": outcome == "passed",
                         "points": points,
                         "longrepr": longrepr,
@@ -574,6 +575,11 @@ class BundleTestRunner:
                 "file": filename,
                 "class": test_class,
                 "name": test_name,
+                "nodeid": (
+                    f"tests/{filename}::"
+                    + (f"{test_class}::" if test_class else "")
+                    + test_name
+                ),
                 "passed": status == "PASSED",
                 "points": metadata["points"],
                 "longrepr": "",
@@ -691,7 +697,18 @@ class BundleTestRunner:
             gist = self._summarize_longrepr(test.get("longrepr", ""))
             if gist:
                 print(f"{indent}       {gist}")
-            print(f"{indent}       {BLUE}-> pytest {test['file']}::{qualname} -v{RESET}")
+            nodeid = test.get("nodeid") or f"tests/{test['file']}::{qualname}"
+            path, separator, suffix = nodeid.partition("::")
+            if Path(path).is_absolute():
+                try:
+                    relative = Path(path).resolve().relative_to(self.root_dir.resolve())
+                    nodeid = relative.as_posix() + (separator + suffix if separator else "")
+                except ValueError:
+                    pass
+            safe_nodeid = nodeid.replace('"', '\\"')
+            print(
+                f'{indent}       {BLUE}-> python -m pytest "{safe_nodeid}" -v{RESET}'
+            )
 
     def _render_focus_bundle(self, groups, show_all):
         """Render the body of the focus bundle: grouped, with sub-focus.
@@ -799,6 +816,10 @@ class BundleTestRunner:
         -v: keeps full pytest verbose output as well (handled in
         build_pytest_command).
         """
+        if self.bundle is not None:
+            self._print_focused_bundle_results(bundles_data)
+            return
+
         status = self.compute_bundle_status(bundles_data)
         bundle_status = status["bundles"]
         grade = status["grade"]
@@ -901,6 +922,33 @@ class BundleTestRunner:
             print("-> Complete Bundle 3 tests (advanced features)")
         else:
             print(f"{GREEN}-> Congratulations! All bundles complete!{RESET}")
+
+    def _print_focused_bundle_results(self, bundles_data):
+        """Report one selected bundle without claiming or caching a full grade."""
+
+        tests = bundles_data[self.bundle]
+        total = len(tests)
+        passed = sum(1 for test in tests if test["passed"])
+        complete = total > 0 and passed == total
+        icon = f"{GREEN}[PASS]{RESET}" if complete else f"{RED}[FAIL]{RESET}"
+
+        print("\n" + "=" * 80)
+        print(f"{BOLD}FOCUSED BUNDLE {self.bundle} RESULTS{RESET}")
+        print("=" * 80)
+        print(f"{icon} Bundle {self.bundle}: {passed}/{total} tests passed")
+
+        if not complete:
+            groups = self._build_component_groups(tests)
+            if len(groups) <= 1:
+                if groups:
+                    self._render_group_failures(groups[0], indent="  ")
+            else:
+                self._render_focus_bundle(groups, show_all=self.show_all)
+
+        print(
+            "\nThis was a focused diagnostic run. It did not calculate an "
+            "overall grade or overwrite the last full-suite grade status."
+        )
 
     def _install_sigterm_handler(self):
         """On Unix, ensure SIGTERM kills the pytest subprocess before we exit.
