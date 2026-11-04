@@ -18,10 +18,8 @@ addopts = [
     "--strict-markers",
     # thread method is cross-platform; signal method fails on Windows.
     # Thread can't interrupt C-level blocks; the watchdog covers that.
-    # These threaded multi-server scenarios are slow: the 20-scenario
-    # reference run takes >100s, so a single scenario needs generous
-    # headroom. 120s per test is a safe ceiling for the largest
-    # (eleven-server) scenarios.
+    # A correct server finishes any scenario in a few seconds. One that never
+    # goes quiet takes up to about 40s, so 120s only ever catches a true hang.
     "--timeout=120",
     "--timeout-method=thread",
 ]

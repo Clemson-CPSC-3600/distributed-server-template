@@ -125,7 +125,8 @@ for host 3 is 1." A `?` means the object you stored for that host has no
 | What you see | Where to look |
 |---|---|
 | `crash:` naming `NotImplementedError` | That method is the next one to write. |
-| `did not shut down within ...` | Your loop is not noticing `request_terminate`, or a socket call or `select()` is blocking. |
+| `did not shut down within ...` | Your loop is not noticing `request_terminate`, or a socket call is blocking. |
+| A scenario is slow, but does finish | The network never went quiet. Something is stuck in a `write_buffer`, or a host keeps sending. |
 | A host receives nothing at all | Check the listening socket and the event loop. Is the socket registered, and do you read when a socket is readable? |
 | Messages sit unsent, so the next hop never gets them | Queued bytes only leave on a write event. Is every accepted socket registered for writing? Do you send when the buffer is non-empty? |
 | The same message is received over and over, or `extra` copies appear | You are not removing sent bytes from the write buffer, or a broadcast is going back toward where it came from. |
@@ -149,6 +150,7 @@ could send a harmless extra message that the reference does not. **`python
 run_tests.py` is the authority on whether your project passes**, and it judges the
 final state, not the message log.
 
-On a heavily loaded machine a scenario can occasionally miss one of its timing
-windows even with correct code. If a failure disappears when you re-run with
-nothing else running, it was timing rather than your logic.
+Scenarios do not depend on your machine's speed: each step waits for the network to
+finish rather than for a fixed time. So if a test fails, treat it as a real result,
+even if it passes on another run. A failure that comes and goes usually means your
+server depends on message order or on bytes arriving together.

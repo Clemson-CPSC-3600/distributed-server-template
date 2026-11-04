@@ -45,8 +45,8 @@ REFERENCE_DIR = REPO_ROOT / "crc_support" / "reference_traces"
 OUTPUT_DIR = REPO_ROOT / "trace-logs"
 SOLUTION = REPO_ROOT / "solution" / "ChatServer.py"
 
-# A scenario that outlives this has a host that will not shut down.  The longest
-# reference scenario takes about 35 seconds on a heavily loaded machine.
+# A scenario that outlives this has a host that will not shut down.  A scenario
+# whose network never goes quiet takes up to about 40 seconds.
 SCENARIO_TIMEOUT_SECONDS = 180
 
 BUNDLE_FILES = {

@@ -34,8 +34,10 @@ python run_tests.py --failed            # rerun pytest's previous failures
 ```
 
 These scenarios launch several servers and clients as threads on real localhost
-sockets, so a single test can take a few seconds and the full suite takes over a
-minute. That is expected.
+sockets. With a working server, the whole suite takes well under a minute, and you
+can run all of it at once. A server that never stops sending, or never sends at
+all, takes longer because the harness gives the network time to finish before
+giving up.
 
 ## How the harness works
 
@@ -62,6 +64,17 @@ assert results[0]["passed"], results[0]["errors"]
 - Each run also writes a transcript of everything printed to `Logs/<scenario>.log`
   at the repo root, including your own `self.print_info(...)` calls. (`Logs/` is
   git-ignored.)
+
+- `WAIT` does not sleep for a fixed time. It waits until the network is quiet: every
+  host waiting for input, nothing queued in a `write_buffer`, and every byte sent
+  already received. A correct network needs a fraction of a second, even on a busy
+  machine.
+- While tests run, `selectors.DefaultSelector` is the harness's own selector, which
+  reports a socket as writable only when its connection has bytes in `write_buffer`.
+  It keeps idle hosts asleep, so many hosts can share one machine. Your code does
+  not change, but if you print inside your loop you will see fewer write events than
+  [PROTOCOL.md](PROTOCOL.md) describes. Outside the tests, a socket is reported as
+  writable almost all the time, so still check the buffer before you send.
 
 You never edit `crc_support/`. The graded tests only ever call through
 `CRCTestManager`; they do not import your server or inspect its private state.

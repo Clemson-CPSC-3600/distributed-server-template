@@ -1,5 +1,11 @@
 import threading, os, re, time, sys, json, traceback, inspect
 from optparse import OptionParser
+from crc_support import quiescence
+
+# Must happen before the client and the student server are imported, so that any
+# way of naming a socket or DefaultSelector gets the harness's version.
+quiescence.install()
+
 from crc_support.ChatClient import CRCClient
 from src.ChatServer import CRCServer
 from crc_support.ChatMessageParser import *
@@ -103,7 +109,6 @@ class CRCTestManager(object):
                         'exception':exception
                     })
                     print("\nTest passed:" + str(passed))
-                    time.sleep(1)
                     sys.stdout = sys.__stdout__
 
         print("\n##############################################")
