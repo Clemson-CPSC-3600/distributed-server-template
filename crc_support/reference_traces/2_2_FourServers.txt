@@ -1,0 +1,34 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+step 02  rivendale  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 02  theshire  ServerRegistration source=2 last_hop=0 name='rivendale' info='"Elronds House"'
+# step 03: start server grey_havens (id 3, connects to theshire)
+step 03  grey_havens  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 03  grey_havens  ServerRegistration source=2 last_hop=1 name='rivendale' info='"Elronds House"'
+step 03  rivendale  ServerRegistration source=3 last_hop=1 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 03  theshire  ServerRegistration source=3 last_hop=0 name='grey_havens' info='"Gates to the Blessed Realm"'
+# step 04: start server lothlorien (id 4, connects to rivendale)
+step 04  grey_havens  ServerRegistration source=4 last_hop=1 name='lothlorien' info='"The Golden Wood"'
+step 04  lothlorien  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 04  lothlorien  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 04  lothlorien  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 04  rivendale  ServerRegistration source=4 last_hop=0 name='lothlorien' info='"The Golden Wood"'
+step 04  theshire  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+# step 05: shut down ALL
+# final state
+grey_havens  adjacent_clients  []
+grey_havens  adjacent_servers  [1]
+grey_havens  routes  1 via 1, 2 via 1, 4 via 1
+grey_havens  status_log  []
+lothlorien  adjacent_clients  []
+lothlorien  adjacent_servers  [2]
+lothlorien  routes  1 via 2, 2 via 2, 3 via 2
+lothlorien  status_log  []
+rivendale  adjacent_clients  []
+rivendale  adjacent_servers  [1, 4]
+rivendale  routes  1 via 1, 3 via 1, 4 via 4
+rivendale  status_log  []
+theshire  adjacent_clients  []
+theshire  adjacent_servers  [2, 3]
+theshire  routes  2 via 2, 3 via 3, 4 via 2
+theshire  status_log  []

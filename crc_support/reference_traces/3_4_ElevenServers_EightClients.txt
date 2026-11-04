@@ -1,0 +1,351 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+step 02  rivendale  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 02  theshire  ServerRegistration source=2 last_hop=0 name='rivendale' info='"Elronds House"'
+# step 03: start client frodobaggins (id 101) on theshire
+step 03  frodobaggins  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network frodobaggins'
+step 03  rivendale  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 03  theshire  ClientRegistration source=101 last_hop=0 name='frodobaggins' info='"Test info"'
+# step 04: start server grey_havens (id 3, connects to theshire)
+step 04  grey_havens  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 04  grey_havens  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 04  grey_havens  ServerRegistration source=2 last_hop=1 name='rivendale' info='"Elronds House"'
+step 04  rivendale  ServerRegistration source=3 last_hop=1 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 04  theshire  ServerRegistration source=3 last_hop=0 name='grey_havens' info='"Gates to the Blessed Realm"'
+# step 05: start client samgamgee (id 102) on theshire
+step 05  frodobaggins  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  grey_havens  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  rivendale  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  samgamgee  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 05  samgamgee  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network samgamgee'
+step 05  theshire  ClientRegistration source=102 last_hop=0 name='samgamgee' info='"Test info"'
+# step 06: start client elrond (id 103) on rivendale
+step 06  elrond  ClientRegistration source=101 last_hop=2 name='frodobaggins' info='"Test info"'
+step 06  elrond  ClientRegistration source=102 last_hop=2 name='samgamgee' info='"Test info"'
+step 06  elrond  StatusUpdate source=2 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network elrond'
+step 06  frodobaggins  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  grey_havens  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  rivendale  ClientRegistration source=103 last_hop=0 name='elrond' info='"Test info"'
+step 06  samgamgee  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  theshire  ClientRegistration source=103 last_hop=2 name='elrond' info='"Test info"'
+# step 07: start client bilbobaggins (id 104) on grey_havens
+step 07  bilbobaggins  ClientRegistration source=101 last_hop=3 name='frodobaggins' info='"Test info"'
+step 07  bilbobaggins  ClientRegistration source=102 last_hop=3 name='samgamgee' info='"Test info"'
+step 07  bilbobaggins  ClientRegistration source=103 last_hop=3 name='elrond' info='"Test info"'
+step 07  bilbobaggins  StatusUpdate source=3 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network bilbobaggins'
+step 07  elrond  ClientRegistration source=104 last_hop=2 name='bilbobaggins' info='"Test info"'
+step 07  frodobaggins  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 07  grey_havens  ClientRegistration source=104 last_hop=0 name='bilbobaggins' info='"Test info"'
+step 07  rivendale  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 07  samgamgee  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 07  theshire  ClientRegistration source=104 last_hop=3 name='bilbobaggins' info='"Test info"'
+# step 08: start server lothlorien (id 4, connects to rivendale)
+step 08  grey_havens  ServerRegistration source=4 last_hop=1 name='lothlorien' info='"The Golden Wood"'
+step 08  lothlorien  ClientRegistration source=101 last_hop=2 name='frodobaggins' info='"Test info"'
+step 08  lothlorien  ClientRegistration source=102 last_hop=2 name='samgamgee' info='"Test info"'
+step 08  lothlorien  ClientRegistration source=103 last_hop=2 name='elrond' info='"Test info"'
+step 08  lothlorien  ClientRegistration source=104 last_hop=2 name='bilbobaggins' info='"Test info"'
+step 08  lothlorien  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 08  lothlorien  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 08  lothlorien  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 08  rivendale  ServerRegistration source=4 last_hop=0 name='lothlorien' info='"The Golden Wood"'
+step 08  theshire  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+# step 09: start server moria (id 5, connects to rivendale)
+step 09  grey_havens  ServerRegistration source=5 last_hop=1 name='moria' info='"The Black Pit"'
+step 09  lothlorien  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+step 09  moria  ClientRegistration source=101 last_hop=2 name='frodobaggins' info='"Test info"'
+step 09  moria  ClientRegistration source=102 last_hop=2 name='samgamgee' info='"Test info"'
+step 09  moria  ClientRegistration source=103 last_hop=2 name='elrond' info='"Test info"'
+step 09  moria  ClientRegistration source=104 last_hop=2 name='bilbobaggins' info='"Test info"'
+step 09  moria  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 09  moria  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 09  moria  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 09  moria  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+step 09  rivendale  ServerRegistration source=5 last_hop=0 name='moria' info='"The Black Pit"'
+step 09  theshire  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+# step 10: start server edoras (id 6, connects to lothlorien)
+step 10  edoras  ClientRegistration source=101 last_hop=4 name='frodobaggins' info='"Test info"'
+step 10  edoras  ClientRegistration source=102 last_hop=4 name='samgamgee' info='"Test info"'
+step 10  edoras  ClientRegistration source=103 last_hop=4 name='elrond' info='"Test info"'
+step 10  edoras  ClientRegistration source=104 last_hop=4 name='bilbobaggins' info='"Test info"'
+step 10  edoras  ServerRegistration source=1 last_hop=4 name='theshire' info='"Home of the Hobbits"'
+step 10  edoras  ServerRegistration source=2 last_hop=4 name='rivendale' info='"Elronds House"'
+step 10  edoras  ServerRegistration source=3 last_hop=4 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 10  edoras  ServerRegistration source=4 last_hop=4 name='lothlorien' info='"The Golden Wood"'
+step 10  edoras  ServerRegistration source=5 last_hop=4 name='moria' info='"The Black Pit"'
+step 10  grey_havens  ServerRegistration source=6 last_hop=1 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 10  lothlorien  ServerRegistration source=6 last_hop=0 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 10  moria  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 10  rivendale  ServerRegistration source=6 last_hop=4 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 10  theshire  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+# step 11: start server minastirith (id 7, connects to lothlorien)
+step 11  edoras  ServerRegistration source=7 last_hop=4 name='minastirith' info='"Tower of Guard"'
+step 11  grey_havens  ServerRegistration source=7 last_hop=1 name='minastirith' info='"Tower of Guard"'
+step 11  lothlorien  ServerRegistration source=7 last_hop=0 name='minastirith' info='"Tower of Guard"'
+step 11  minastirith  ClientRegistration source=101 last_hop=4 name='frodobaggins' info='"Test info"'
+step 11  minastirith  ClientRegistration source=102 last_hop=4 name='samgamgee' info='"Test info"'
+step 11  minastirith  ClientRegistration source=103 last_hop=4 name='elrond' info='"Test info"'
+step 11  minastirith  ClientRegistration source=104 last_hop=4 name='bilbobaggins' info='"Test info"'
+step 11  minastirith  ServerRegistration source=1 last_hop=4 name='theshire' info='"Home of the Hobbits"'
+step 11  minastirith  ServerRegistration source=2 last_hop=4 name='rivendale' info='"Elronds House"'
+step 11  minastirith  ServerRegistration source=3 last_hop=4 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 11  minastirith  ServerRegistration source=4 last_hop=4 name='lothlorien' info='"The Golden Wood"'
+step 11  minastirith  ServerRegistration source=5 last_hop=4 name='moria' info='"The Black Pit"'
+step 11  minastirith  ServerRegistration source=6 last_hop=4 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 11  moria  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+step 11  rivendale  ServerRegistration source=7 last_hop=4 name='minastirith' info='"Tower of Guard"'
+step 11  theshire  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+# step 12: start client peregrin (id 105) on minastirith
+step 12  bilbobaggins  ClientRegistration source=105 last_hop=3 name='peregrin' info='"Test info"'
+step 12  edoras  ClientRegistration source=105 last_hop=4 name='peregrin' info='"Test info"'
+step 12  elrond  ClientRegistration source=105 last_hop=2 name='peregrin' info='"Test info"'
+step 12  frodobaggins  ClientRegistration source=105 last_hop=1 name='peregrin' info='"Test info"'
+step 12  grey_havens  ClientRegistration source=105 last_hop=1 name='peregrin' info='"Test info"'
+step 12  lothlorien  ClientRegistration source=105 last_hop=7 name='peregrin' info='"Test info"'
+step 12  minastirith  ClientRegistration source=105 last_hop=0 name='peregrin' info='"Test info"'
+step 12  moria  ClientRegistration source=105 last_hop=2 name='peregrin' info='"Test info"'
+step 12  peregrin  ClientRegistration source=101 last_hop=7 name='frodobaggins' info='"Test info"'
+step 12  peregrin  ClientRegistration source=102 last_hop=7 name='samgamgee' info='"Test info"'
+step 12  peregrin  ClientRegistration source=103 last_hop=7 name='elrond' info='"Test info"'
+step 12  peregrin  ClientRegistration source=104 last_hop=7 name='bilbobaggins' info='"Test info"'
+step 12  peregrin  StatusUpdate source=7 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network peregrin'
+step 12  rivendale  ClientRegistration source=105 last_hop=4 name='peregrin' info='"Test info"'
+step 12  samgamgee  ClientRegistration source=105 last_hop=1 name='peregrin' info='"Test info"'
+step 12  theshire  ClientRegistration source=105 last_hop=2 name='peregrin' info='"Test info"'
+# step 13: start server mirkwood (id 8, connects to rivendale)
+step 13  edoras  ServerRegistration source=8 last_hop=4 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  grey_havens  ServerRegistration source=8 last_hop=1 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  lothlorien  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  minastirith  ServerRegistration source=8 last_hop=4 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  mirkwood  ClientRegistration source=101 last_hop=2 name='frodobaggins' info='"Test info"'
+step 13  mirkwood  ClientRegistration source=102 last_hop=2 name='samgamgee' info='"Test info"'
+step 13  mirkwood  ClientRegistration source=103 last_hop=2 name='elrond' info='"Test info"'
+step 13  mirkwood  ClientRegistration source=104 last_hop=2 name='bilbobaggins' info='"Test info"'
+step 13  mirkwood  ClientRegistration source=105 last_hop=2 name='peregrin' info='"Test info"'
+step 13  mirkwood  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 13  mirkwood  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 13  mirkwood  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 13  mirkwood  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+step 13  mirkwood  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+step 13  mirkwood  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 13  mirkwood  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+step 13  moria  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  rivendale  ServerRegistration source=8 last_hop=0 name='mirkwood' info='"Wood of Greenleaves"'
+step 13  theshire  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+# step 14: start client meriadoc (id 106) on edoras
+step 14  bilbobaggins  ClientRegistration source=106 last_hop=3 name='meriadoc' info='"Test info"'
+step 14  edoras  ClientRegistration source=106 last_hop=0 name='meriadoc' info='"Test info"'
+step 14  elrond  ClientRegistration source=106 last_hop=2 name='meriadoc' info='"Test info"'
+step 14  frodobaggins  ClientRegistration source=106 last_hop=1 name='meriadoc' info='"Test info"'
+step 14  grey_havens  ClientRegistration source=106 last_hop=1 name='meriadoc' info='"Test info"'
+step 14  lothlorien  ClientRegistration source=106 last_hop=6 name='meriadoc' info='"Test info"'
+step 14  meriadoc  ClientRegistration source=101 last_hop=6 name='frodobaggins' info='"Test info"'
+step 14  meriadoc  ClientRegistration source=102 last_hop=6 name='samgamgee' info='"Test info"'
+step 14  meriadoc  ClientRegistration source=103 last_hop=6 name='elrond' info='"Test info"'
+step 14  meriadoc  ClientRegistration source=104 last_hop=6 name='bilbobaggins' info='"Test info"'
+step 14  meriadoc  ClientRegistration source=105 last_hop=6 name='peregrin' info='"Test info"'
+step 14  meriadoc  StatusUpdate source=6 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network meriadoc'
+step 14  minastirith  ClientRegistration source=106 last_hop=4 name='meriadoc' info='"Test info"'
+step 14  mirkwood  ClientRegistration source=106 last_hop=2 name='meriadoc' info='"Test info"'
+step 14  moria  ClientRegistration source=106 last_hop=2 name='meriadoc' info='"Test info"'
+step 14  peregrin  ClientRegistration source=106 last_hop=7 name='meriadoc' info='"Test info"'
+step 14  rivendale  ClientRegistration source=106 last_hop=4 name='meriadoc' info='"Test info"'
+step 14  samgamgee  ClientRegistration source=106 last_hop=1 name='meriadoc' info='"Test info"'
+step 14  theshire  ClientRegistration source=106 last_hop=2 name='meriadoc' info='"Test info"'
+# step 15: start server isengard (id 9, connects to edoras)
+step 15  edoras  ServerRegistration source=9 last_hop=0 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  grey_havens  ServerRegistration source=9 last_hop=1 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  isengard  ClientRegistration source=101 last_hop=6 name='frodobaggins' info='"Test info"'
+step 15  isengard  ClientRegistration source=102 last_hop=6 name='samgamgee' info='"Test info"'
+step 15  isengard  ClientRegistration source=103 last_hop=6 name='elrond' info='"Test info"'
+step 15  isengard  ClientRegistration source=104 last_hop=6 name='bilbobaggins' info='"Test info"'
+step 15  isengard  ClientRegistration source=105 last_hop=6 name='peregrin' info='"Test info"'
+step 15  isengard  ClientRegistration source=106 last_hop=6 name='meriadoc' info='"Test info"'
+step 15  isengard  ServerRegistration source=1 last_hop=6 name='theshire' info='"Home of the Hobbits"'
+step 15  isengard  ServerRegistration source=2 last_hop=6 name='rivendale' info='"Elronds House"'
+step 15  isengard  ServerRegistration source=3 last_hop=6 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 15  isengard  ServerRegistration source=4 last_hop=6 name='lothlorien' info='"The Golden Wood"'
+step 15  isengard  ServerRegistration source=5 last_hop=6 name='moria' info='"The Black Pit"'
+step 15  isengard  ServerRegistration source=6 last_hop=6 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 15  isengard  ServerRegistration source=7 last_hop=6 name='minastirith' info='"Tower of Guard"'
+step 15  isengard  ServerRegistration source=8 last_hop=6 name='mirkwood' info='"Wood of Greenleaves"'
+step 15  lothlorien  ServerRegistration source=9 last_hop=6 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  minastirith  ServerRegistration source=9 last_hop=4 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  mirkwood  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  moria  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  rivendale  ServerRegistration source=9 last_hop=4 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 15  theshire  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+# step 16: start server osgiliath (id 10, connects to minastirith)
+step 16  edoras  ServerRegistration source=10 last_hop=4 name='osgiliath' info='"Citadel of the Stars"'
+step 16  grey_havens  ServerRegistration source=10 last_hop=1 name='osgiliath' info='"Citadel of the Stars"'
+step 16  isengard  ServerRegistration source=10 last_hop=6 name='osgiliath' info='"Citadel of the Stars"'
+step 16  lothlorien  ServerRegistration source=10 last_hop=7 name='osgiliath' info='"Citadel of the Stars"'
+step 16  minastirith  ServerRegistration source=10 last_hop=0 name='osgiliath' info='"Citadel of the Stars"'
+step 16  mirkwood  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+step 16  moria  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+step 16  osgiliath  ClientRegistration source=101 last_hop=7 name='frodobaggins' info='"Test info"'
+step 16  osgiliath  ClientRegistration source=102 last_hop=7 name='samgamgee' info='"Test info"'
+step 16  osgiliath  ClientRegistration source=103 last_hop=7 name='elrond' info='"Test info"'
+step 16  osgiliath  ClientRegistration source=104 last_hop=7 name='bilbobaggins' info='"Test info"'
+step 16  osgiliath  ClientRegistration source=105 last_hop=7 name='peregrin' info='"Test info"'
+step 16  osgiliath  ClientRegistration source=106 last_hop=7 name='meriadoc' info='"Test info"'
+step 16  osgiliath  ServerRegistration source=1 last_hop=7 name='theshire' info='"Home of the Hobbits"'
+step 16  osgiliath  ServerRegistration source=2 last_hop=7 name='rivendale' info='"Elronds House"'
+step 16  osgiliath  ServerRegistration source=3 last_hop=7 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 16  osgiliath  ServerRegistration source=4 last_hop=7 name='lothlorien' info='"The Golden Wood"'
+step 16  osgiliath  ServerRegistration source=5 last_hop=7 name='moria' info='"The Black Pit"'
+step 16  osgiliath  ServerRegistration source=6 last_hop=7 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 16  osgiliath  ServerRegistration source=7 last_hop=7 name='minastirith' info='"Tower of Guard"'
+step 16  osgiliath  ServerRegistration source=8 last_hop=7 name='mirkwood' info='"Wood of Greenleaves"'
+step 16  osgiliath  ServerRegistration source=9 last_hop=7 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 16  rivendale  ServerRegistration source=10 last_hop=4 name='osgiliath' info='"Citadel of the Stars"'
+step 16  theshire  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+# step 17: start server barad-dur (id 11, connects to minastirith)
+step 17  barad-dur  ClientRegistration source=101 last_hop=7 name='frodobaggins' info='"Test info"'
+step 17  barad-dur  ClientRegistration source=102 last_hop=7 name='samgamgee' info='"Test info"'
+step 17  barad-dur  ClientRegistration source=103 last_hop=7 name='elrond' info='"Test info"'
+step 17  barad-dur  ClientRegistration source=104 last_hop=7 name='bilbobaggins' info='"Test info"'
+step 17  barad-dur  ClientRegistration source=105 last_hop=7 name='peregrin' info='"Test info"'
+step 17  barad-dur  ClientRegistration source=106 last_hop=7 name='meriadoc' info='"Test info"'
+step 17  barad-dur  ServerRegistration source=1 last_hop=7 name='theshire' info='"Home of the Hobbits"'
+step 17  barad-dur  ServerRegistration source=10 last_hop=7 name='osgiliath' info='"Citadel of the Stars"'
+step 17  barad-dur  ServerRegistration source=2 last_hop=7 name='rivendale' info='"Elronds House"'
+step 17  barad-dur  ServerRegistration source=3 last_hop=7 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 17  barad-dur  ServerRegistration source=4 last_hop=7 name='lothlorien' info='"The Golden Wood"'
+step 17  barad-dur  ServerRegistration source=5 last_hop=7 name='moria' info='"The Black Pit"'
+step 17  barad-dur  ServerRegistration source=6 last_hop=7 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 17  barad-dur  ServerRegistration source=7 last_hop=7 name='minastirith' info='"Tower of Guard"'
+step 17  barad-dur  ServerRegistration source=8 last_hop=7 name='mirkwood' info='"Wood of Greenleaves"'
+step 17  barad-dur  ServerRegistration source=9 last_hop=7 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 17  edoras  ServerRegistration source=11 last_hop=4 name='barad-dur' info='"The Dark Tower"'
+step 17  grey_havens  ServerRegistration source=11 last_hop=1 name='barad-dur' info='"The Dark Tower"'
+step 17  isengard  ServerRegistration source=11 last_hop=6 name='barad-dur' info='"The Dark Tower"'
+step 17  lothlorien  ServerRegistration source=11 last_hop=7 name='barad-dur' info='"The Dark Tower"'
+step 17  minastirith  ServerRegistration source=11 last_hop=0 name='barad-dur' info='"The Dark Tower"'
+step 17  mirkwood  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+step 17  moria  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+step 17  osgiliath  ServerRegistration source=11 last_hop=7 name='barad-dur' info='"The Dark Tower"'
+step 17  rivendale  ServerRegistration source=11 last_hop=4 name='barad-dur' info='"The Dark Tower"'
+step 17  theshire  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+# step 18: start client balin (id 107) on moria
+step 18  balin  ClientRegistration source=101 last_hop=5 name='frodobaggins' info='"Test info"'
+step 18  balin  ClientRegistration source=102 last_hop=5 name='samgamgee' info='"Test info"'
+step 18  balin  ClientRegistration source=103 last_hop=5 name='elrond' info='"Test info"'
+step 18  balin  ClientRegistration source=104 last_hop=5 name='bilbobaggins' info='"Test info"'
+step 18  balin  ClientRegistration source=105 last_hop=5 name='peregrin' info='"Test info"'
+step 18  balin  ClientRegistration source=106 last_hop=5 name='meriadoc' info='"Test info"'
+step 18  balin  StatusUpdate source=5 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network balin'
+step 18  barad-dur  ClientRegistration source=107 last_hop=7 name='balin' info='"Test info"'
+step 18  bilbobaggins  ClientRegistration source=107 last_hop=3 name='balin' info='"Test info"'
+step 18  edoras  ClientRegistration source=107 last_hop=4 name='balin' info='"Test info"'
+step 18  elrond  ClientRegistration source=107 last_hop=2 name='balin' info='"Test info"'
+step 18  frodobaggins  ClientRegistration source=107 last_hop=1 name='balin' info='"Test info"'
+step 18  grey_havens  ClientRegistration source=107 last_hop=1 name='balin' info='"Test info"'
+step 18  isengard  ClientRegistration source=107 last_hop=6 name='balin' info='"Test info"'
+step 18  lothlorien  ClientRegistration source=107 last_hop=2 name='balin' info='"Test info"'
+step 18  meriadoc  ClientRegistration source=107 last_hop=6 name='balin' info='"Test info"'
+step 18  minastirith  ClientRegistration source=107 last_hop=4 name='balin' info='"Test info"'
+step 18  mirkwood  ClientRegistration source=107 last_hop=2 name='balin' info='"Test info"'
+step 18  moria  ClientRegistration source=107 last_hop=0 name='balin' info='"Test info"'
+step 18  osgiliath  ClientRegistration source=107 last_hop=7 name='balin' info='"Test info"'
+step 18  peregrin  ClientRegistration source=107 last_hop=7 name='balin' info='"Test info"'
+step 18  rivendale  ClientRegistration source=107 last_hop=5 name='balin' info='"Test info"'
+step 18  samgamgee  ClientRegistration source=107 last_hop=1 name='balin' info='"Test info"'
+step 18  theshire  ClientRegistration source=107 last_hop=2 name='balin' info='"Test info"'
+# step 19: start client sauron (id 108) on barad-dur
+step 19  balin  ClientRegistration source=108 last_hop=5 name='sauron' info='"Test info"'
+step 19  barad-dur  ClientRegistration source=108 last_hop=0 name='sauron' info='"Test info"'
+step 19  bilbobaggins  ClientRegistration source=108 last_hop=3 name='sauron' info='"Test info"'
+step 19  edoras  ClientRegistration source=108 last_hop=4 name='sauron' info='"Test info"'
+step 19  elrond  ClientRegistration source=108 last_hop=2 name='sauron' info='"Test info"'
+step 19  frodobaggins  ClientRegistration source=108 last_hop=1 name='sauron' info='"Test info"'
+step 19  grey_havens  ClientRegistration source=108 last_hop=1 name='sauron' info='"Test info"'
+step 19  isengard  ClientRegistration source=108 last_hop=6 name='sauron' info='"Test info"'
+step 19  lothlorien  ClientRegistration source=108 last_hop=7 name='sauron' info='"Test info"'
+step 19  meriadoc  ClientRegistration source=108 last_hop=6 name='sauron' info='"Test info"'
+step 19  minastirith  ClientRegistration source=108 last_hop=11 name='sauron' info='"Test info"'
+step 19  mirkwood  ClientRegistration source=108 last_hop=2 name='sauron' info='"Test info"'
+step 19  moria  ClientRegistration source=108 last_hop=2 name='sauron' info='"Test info"'
+step 19  osgiliath  ClientRegistration source=108 last_hop=7 name='sauron' info='"Test info"'
+step 19  peregrin  ClientRegistration source=108 last_hop=7 name='sauron' info='"Test info"'
+step 19  rivendale  ClientRegistration source=108 last_hop=4 name='sauron' info='"Test info"'
+step 19  samgamgee  ClientRegistration source=108 last_hop=1 name='sauron' info='"Test info"'
+step 19  sauron  ClientRegistration source=101 last_hop=11 name='frodobaggins' info='"Test info"'
+step 19  sauron  ClientRegistration source=102 last_hop=11 name='samgamgee' info='"Test info"'
+step 19  sauron  ClientRegistration source=103 last_hop=11 name='elrond' info='"Test info"'
+step 19  sauron  ClientRegistration source=104 last_hop=11 name='bilbobaggins' info='"Test info"'
+step 19  sauron  ClientRegistration source=105 last_hop=11 name='peregrin' info='"Test info"'
+step 19  sauron  ClientRegistration source=106 last_hop=11 name='meriadoc' info='"Test info"'
+step 19  sauron  ClientRegistration source=107 last_hop=11 name='balin' info='"Test info"'
+step 19  sauron  StatusUpdate source=11 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network sauron'
+step 19  theshire  ClientRegistration source=108 last_hop=2 name='sauron' info='"Test info"'
+# step 20: shut down ALL
+# final state
+balin  chat_log  []
+balin  known_clients  [101, 102, 103, 104, 105, 106, 108]
+balin  status_log  ['Welcome to the Clemson Relay Chat network balin']
+barad-dur  adjacent_clients  [108]
+barad-dur  adjacent_servers  [7]
+barad-dur  routes  1 via 7, 2 via 7, 3 via 7, 4 via 7, 5 via 7, 6 via 7, 7 via 7, 8 via 7, 9 via 7, 10 via 7, 101 via 7, 102 via 7, 103 via 7, 104 via 7, 105 via 7, 106 via 7, 107 via 7, 108 via 108
+barad-dur  status_log  []
+bilbobaggins  chat_log  []
+bilbobaggins  known_clients  [101, 102, 103, 105, 106, 107, 108]
+bilbobaggins  status_log  ['Welcome to the Clemson Relay Chat network bilbobaggins']
+edoras  adjacent_clients  [106]
+edoras  adjacent_servers  [4, 9]
+edoras  routes  1 via 4, 2 via 4, 3 via 4, 4 via 4, 5 via 4, 7 via 4, 8 via 4, 9 via 9, 10 via 4, 11 via 4, 101 via 4, 102 via 4, 103 via 4, 104 via 4, 105 via 4, 106 via 106, 107 via 4, 108 via 4
+edoras  status_log  []
+elrond  chat_log  []
+elrond  known_clients  [101, 102, 104, 105, 106, 107, 108]
+elrond  status_log  ['Welcome to the Clemson Relay Chat network elrond']
+frodobaggins  chat_log  []
+frodobaggins  known_clients  [102, 103, 104, 105, 106, 107, 108]
+frodobaggins  status_log  ['Welcome to the Clemson Relay Chat network frodobaggins']
+grey_havens  adjacent_clients  [104]
+grey_havens  adjacent_servers  [1]
+grey_havens  routes  1 via 1, 2 via 1, 4 via 1, 5 via 1, 6 via 1, 7 via 1, 8 via 1, 9 via 1, 10 via 1, 11 via 1, 101 via 1, 102 via 1, 103 via 1, 104 via 104, 105 via 1, 106 via 1, 107 via 1, 108 via 1
+grey_havens  status_log  []
+isengard  adjacent_clients  []
+isengard  adjacent_servers  [6]
+isengard  routes  1 via 6, 2 via 6, 3 via 6, 4 via 6, 5 via 6, 6 via 6, 7 via 6, 8 via 6, 10 via 6, 11 via 6, 101 via 6, 102 via 6, 103 via 6, 104 via 6, 105 via 6, 106 via 6, 107 via 6, 108 via 6
+isengard  status_log  []
+lothlorien  adjacent_clients  []
+lothlorien  adjacent_servers  [2, 6, 7]
+lothlorien  routes  1 via 2, 2 via 2, 3 via 2, 5 via 2, 6 via 6, 7 via 7, 8 via 2, 9 via 6, 10 via 7, 11 via 7, 101 via 2, 102 via 2, 103 via 2, 104 via 2, 105 via 7, 106 via 6, 107 via 2, 108 via 7
+lothlorien  status_log  []
+meriadoc  chat_log  []
+meriadoc  known_clients  [101, 102, 103, 104, 105, 107, 108]
+meriadoc  status_log  ['Welcome to the Clemson Relay Chat network meriadoc']
+minastirith  adjacent_clients  [105]
+minastirith  adjacent_servers  [4, 10, 11]
+minastirith  routes  1 via 4, 2 via 4, 3 via 4, 4 via 4, 5 via 4, 6 via 4, 8 via 4, 9 via 4, 10 via 10, 11 via 11, 101 via 4, 102 via 4, 103 via 4, 104 via 4, 105 via 105, 106 via 4, 107 via 4, 108 via 11
+minastirith  status_log  []
+mirkwood  adjacent_clients  []
+mirkwood  adjacent_servers  [2]
+mirkwood  routes  1 via 2, 2 via 2, 3 via 2, 4 via 2, 5 via 2, 6 via 2, 7 via 2, 9 via 2, 10 via 2, 11 via 2, 101 via 2, 102 via 2, 103 via 2, 104 via 2, 105 via 2, 106 via 2, 107 via 2, 108 via 2
+mirkwood  status_log  []
+moria  adjacent_clients  [107]
+moria  adjacent_servers  [2]
+moria  routes  1 via 2, 2 via 2, 3 via 2, 4 via 2, 6 via 2, 7 via 2, 8 via 2, 9 via 2, 10 via 2, 11 via 2, 101 via 2, 102 via 2, 103 via 2, 104 via 2, 105 via 2, 106 via 2, 107 via 107, 108 via 2
+moria  status_log  []
+osgiliath  adjacent_clients  []
+osgiliath  adjacent_servers  [7]
+osgiliath  routes  1 via 7, 2 via 7, 3 via 7, 4 via 7, 5 via 7, 6 via 7, 7 via 7, 8 via 7, 9 via 7, 11 via 7, 101 via 7, 102 via 7, 103 via 7, 104 via 7, 105 via 7, 106 via 7, 107 via 7, 108 via 7
+osgiliath  status_log  []
+peregrin  chat_log  []
+peregrin  known_clients  [101, 102, 103, 104, 106, 107, 108]
+peregrin  status_log  ['Welcome to the Clemson Relay Chat network peregrin']
+rivendale  adjacent_clients  [103]
+rivendale  adjacent_servers  [1, 4, 5, 8]
+rivendale  routes  1 via 1, 3 via 1, 4 via 4, 5 via 5, 6 via 4, 7 via 4, 8 via 8, 9 via 4, 10 via 4, 11 via 4, 101 via 1, 102 via 1, 103 via 103, 104 via 1, 105 via 4, 106 via 4, 107 via 5, 108 via 4
+rivendale  status_log  []
+samgamgee  chat_log  []
+samgamgee  known_clients  [101, 103, 104, 105, 106, 107, 108]
+samgamgee  status_log  ['Welcome to the Clemson Relay Chat network samgamgee']
+sauron  chat_log  []
+sauron  known_clients  [101, 102, 103, 104, 105, 106, 107]
+sauron  status_log  ['Welcome to the Clemson Relay Chat network sauron']
+theshire  adjacent_clients  [101, 102]
+theshire  adjacent_servers  [2, 3]
+theshire  routes  2 via 2, 3 via 3, 4 via 2, 5 via 2, 6 via 2, 7 via 2, 8 via 2, 9 via 2, 10 via 2, 11 via 2, 101 via 101, 102 via 102, 103 via 2, 104 via 3, 105 via 2, 106 via 2, 107 via 2, 108 via 2
+theshire  status_log  []

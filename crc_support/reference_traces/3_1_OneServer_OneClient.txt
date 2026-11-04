@@ -1,0 +1,13 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start client frodobaggins (id 101) on theshire
+step 02  frodobaggins  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network frodobaggins'
+step 02  theshire  ClientRegistration source=101 last_hop=0 name='frodobaggins' info='"Test info"'
+# step 03: shut down ALL
+# final state
+frodobaggins  chat_log  []
+frodobaggins  known_clients  []
+frodobaggins  status_log  ['Welcome to the Clemson Relay Chat network frodobaggins']
+theshire  adjacent_clients  [101]
+theshire  adjacent_servers  []
+theshire  routes  101 via 101
+theshire  status_log  []

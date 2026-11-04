@@ -266,9 +266,8 @@ class CRCServer(object):
         TODO: Shut down and unregister all sockets registered with the selector
         TODO: Shut down the selector
 
-        NOTE: You can get a list of all sockets registered with the selector by accessing a hidden dictionary 
-            of the selector: _fd_to_keys. You can extract a list of io_devices from this using the command: 
-            list(self.sel._fd_to_key.values())
+        NOTE: The selector's get_map() method gives you every registered socket; see "Non-blocking I/O with 
+            selectors" in PROTOCOL.md.
 
         Args:
             None
@@ -460,19 +459,15 @@ class CRCServer(object):
 
         You will need to determine if this new server is adjacent to the server processing this message. If 
         the new server is adjacent, add its ID to self.adjacent_server_ids and modify the assocated io_device 
-        to replace the associated data object with your new ServerConnectionData object. You can do this by
-        calling: self.sel.modify(io_device.fileobj, 
-                                 selectors.EVENT_READ | selectors.EVENT_WRITE, 
-                                 my_new_server_connection_data_obj)
+        to replace the associated data object with your new ServerConnectionData object. The selector's 
+        modify() method does this; see "Non-blocking I/O with selectors" in PROTOCOL.md.
 
         If this registration message came from a brand new adjacent server then it is the responsibility of 
         the server processing this message to inform the new server of all other connected servers and 
         clients. You can accomplish this by creating ServerRegistationMessages and ClientRegistrationMessages 
         for each of the existing servers and clients and sending them to the brand new adjacent machine. These
         messages will then be processed by the new adjacent server's handle_server_registration_message() 
-        function. You can check if a host stored in self.hosts_db is a Server or a Client using python's 
-        isinstance() command (e.g. isinstance(self.hosts_db[0], ServerConnectionData) returns True or False 
-        depending on the type of the object stored in self.hosts_db[0])
+        function. Python's isinstance() tells you whether a stored host is a server or a client.
 
         Finally, a message should be broadcast to the rest of the network informing it about this new server. 
         This message should not be broadcast back to the new machine.
@@ -504,10 +499,8 @@ class CRCServer(object):
 
         You will need to determine if this new client is adjacent to the server processing this message. If 
         the new client is adjacent, add its ID to self.adjacent_user_ids and modify the assocated io_device 
-        to replace the associated data object with your new ClientConnectionData object. You can do this by
-        calling: self.sel.modify(io_device.fileobj, 
-                                 selectors.EVENT_READ | selectors.EVENT_WRITE, 
-                                 my_new_client_connection_data_obj)
+        to replace the associated data object with your new ClientConnectionData object. The selector's 
+        modify() method does this; see "Non-blocking I/O with selectors" in PROTOCOL.md.
         You should also send a Welcome status update to the newly connected adjacent client. The message code 
         should be 0x00 and the message content should be "Welcome to the Clemson Relay Chat network [X]", 
         where [X] is the client's name. 
@@ -515,10 +508,7 @@ class CRCServer(object):
         If this registration message came from a brand new adjacent client then it is the responsibility of 
         the server processing this message to inform the new client of all other connected clients. You can 
         accomplish this by creating ClientRegistrationMessages for each of the existing clients and sending 
-        them to the brand new adjacent machine. You can check if a host stored in self.hosts_db is a Server 
-        or a Client using python's isinstance() command 
-        (e.g. isinstance(self.hosts_db[0], ServerConnectionData) returns True or False depending on the type 
-        of the object stored in self.hosts_db[0])
+        them to the brand new adjacent machine. Python's isinstance() tells you whether a stored host is a server or a client.
 
         Finally, a message should be broadcast to the rest of the network informing it about this new client. 
         This message should not be broadcast back to the new machine.

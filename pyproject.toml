@@ -29,6 +29,9 @@ markers = [
     "bundle: mark test as belonging to a specific grading bundle (usage: @pytest.mark.bundle(1))",
     "points: mark test with point value for scoring (usage: @pytest.mark.points(10))",
 ]
+# Resolve src.ChatServer and crc_support the same way from any working
+# directory, including VS Code's test runner.
+pythonpath = ["."]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]

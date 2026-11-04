@@ -1,0 +1,14 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+step 02  rivendale  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 02  theshire  ServerRegistration source=2 last_hop=0 name='rivendale' info='"Elronds House"'
+# step 03: shut down ALL
+# final state
+rivendale  adjacent_clients  []
+rivendale  adjacent_servers  [1]
+rivendale  routes  1 via 1
+rivendale  status_log  []
+theshire  adjacent_clients  []
+theshire  adjacent_servers  [2]
+theshire  routes  2 via 2
+theshire  status_log  []

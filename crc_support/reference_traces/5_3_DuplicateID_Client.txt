@@ -1,0 +1,73 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+step 02  rivendale  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 02  theshire  ServerRegistration source=2 last_hop=0 name='rivendale' info='"Elronds House"'
+# step 03: start client frodobaggins (id 101) on theshire
+step 03  frodobaggins  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network frodobaggins'
+step 03  rivendale  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 03  theshire  ClientRegistration source=101 last_hop=0 name='frodobaggins' info='"Test info"'
+# step 04: start server grey_havens (id 3, connects to theshire)
+step 04  grey_havens  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 04  grey_havens  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 04  grey_havens  ServerRegistration source=2 last_hop=1 name='rivendale' info='"Elronds House"'
+step 04  rivendale  ServerRegistration source=3 last_hop=1 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 04  theshire  ServerRegistration source=3 last_hop=0 name='grey_havens' info='"Gates to the Blessed Realm"'
+# step 05: start client samgamgee (id 102) on theshire
+step 05  frodobaggins  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  grey_havens  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  rivendale  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 05  samgamgee  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 05  samgamgee  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network samgamgee'
+step 05  theshire  ClientRegistration source=102 last_hop=0 name='samgamgee' info='"Test info"'
+# step 06: start client elrond (id 103) on rivendale
+step 06  elrond  ClientRegistration source=101 last_hop=2 name='frodobaggins' info='"Test info"'
+step 06  elrond  ClientRegistration source=102 last_hop=2 name='samgamgee' info='"Test info"'
+step 06  elrond  StatusUpdate source=2 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network elrond'
+step 06  frodobaggins  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  grey_havens  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  rivendale  ClientRegistration source=103 last_hop=0 name='elrond' info='"Test info"'
+step 06  samgamgee  ClientRegistration source=103 last_hop=1 name='elrond' info='"Test info"'
+step 06  theshire  ClientRegistration source=103 last_hop=2 name='elrond' info='"Test info"'
+# step 07: start client gollum (id 102) on theshire
+step 07  gollum  StatusUpdate source=1 destination=0 code=0x02 text='Someone has already registered with ID 102'
+step 07  theshire  ClientRegistration source=102 last_hop=0 name='gollum' info='"Test info"'
+# step 08: start client bilbobaggins (id 104) on grey_havens
+step 08  bilbobaggins  ClientRegistration source=101 last_hop=3 name='frodobaggins' info='"Test info"'
+step 08  bilbobaggins  ClientRegistration source=102 last_hop=3 name='samgamgee' info='"Test info"'
+step 08  bilbobaggins  ClientRegistration source=103 last_hop=3 name='elrond' info='"Test info"'
+step 08  bilbobaggins  StatusUpdate source=3 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network bilbobaggins'
+step 08  elrond  ClientRegistration source=104 last_hop=2 name='bilbobaggins' info='"Test info"'
+step 08  frodobaggins  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 08  grey_havens  ClientRegistration source=104 last_hop=0 name='bilbobaggins' info='"Test info"'
+step 08  rivendale  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 08  samgamgee  ClientRegistration source=104 last_hop=1 name='bilbobaggins' info='"Test info"'
+step 08  theshire  ClientRegistration source=104 last_hop=3 name='bilbobaggins' info='"Test info"'
+# step 09: shut down ALL
+# final state
+bilbobaggins  chat_log  []
+bilbobaggins  known_clients  [101, 102, 103]
+bilbobaggins  status_log  ['Welcome to the Clemson Relay Chat network bilbobaggins']
+elrond  chat_log  []
+elrond  known_clients  [101, 102, 104]
+elrond  status_log  ['Welcome to the Clemson Relay Chat network elrond']
+frodobaggins  chat_log  []
+frodobaggins  known_clients  [102, 103, 104]
+frodobaggins  status_log  ['Welcome to the Clemson Relay Chat network frodobaggins']
+gollum  chat_log  []
+gollum  known_clients  []
+gollum  status_log  ['Someone has already registered with ID 102']
+grey_havens  adjacent_clients  [104]
+grey_havens  adjacent_servers  [1]
+grey_havens  routes  1 via 1, 2 via 1, 101 via 1, 102 via 1, 103 via 1, 104 via 104
+grey_havens  status_log  []
+rivendale  adjacent_clients  [103]
+rivendale  adjacent_servers  [1]
+rivendale  routes  1 via 1, 3 via 1, 101 via 1, 102 via 1, 103 via 103, 104 via 1
+rivendale  status_log  []
+samgamgee  chat_log  []
+samgamgee  known_clients  [101, 103, 104]
+samgamgee  status_log  ['Welcome to the Clemson Relay Chat network samgamgee']
+theshire  adjacent_clients  [101, 102]
+theshire  adjacent_servers  [2, 3]
+theshire  routes  2 via 2, 3 via 3, 101 via 101, 102 via 102, 103 via 2, 104 via 3
+theshire  status_log  []

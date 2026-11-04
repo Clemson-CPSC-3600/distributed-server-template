@@ -1,0 +1,167 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+step 02  rivendale  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 02  theshire  ServerRegistration source=2 last_hop=0 name='rivendale' info='"Elronds House"'
+# step 03: start server grey_havens (id 3, connects to theshire)
+step 03  grey_havens  ServerRegistration source=1 last_hop=1 name='theshire' info='"Home of the Hobbits"'
+step 03  grey_havens  ServerRegistration source=2 last_hop=1 name='rivendale' info='"Elronds House"'
+step 03  rivendale  ServerRegistration source=3 last_hop=1 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 03  theshire  ServerRegistration source=3 last_hop=0 name='grey_havens' info='"Gates to the Blessed Realm"'
+# step 04: start server lothlorien (id 4, connects to rivendale)
+step 04  grey_havens  ServerRegistration source=4 last_hop=1 name='lothlorien' info='"The Golden Wood"'
+step 04  lothlorien  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 04  lothlorien  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 04  lothlorien  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 04  rivendale  ServerRegistration source=4 last_hop=0 name='lothlorien' info='"The Golden Wood"'
+step 04  theshire  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+# step 05: start server moria (id 5, connects to rivendale)
+step 05  grey_havens  ServerRegistration source=5 last_hop=1 name='moria' info='"The Black Pit"'
+step 05  lothlorien  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+step 05  moria  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 05  moria  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 05  moria  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 05  moria  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+step 05  rivendale  ServerRegistration source=5 last_hop=0 name='moria' info='"The Black Pit"'
+step 05  theshire  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+# step 06: start server edoras (id 6, connects to lothlorien)
+step 06  edoras  ServerRegistration source=1 last_hop=4 name='theshire' info='"Home of the Hobbits"'
+step 06  edoras  ServerRegistration source=2 last_hop=4 name='rivendale' info='"Elronds House"'
+step 06  edoras  ServerRegistration source=3 last_hop=4 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 06  edoras  ServerRegistration source=4 last_hop=4 name='lothlorien' info='"The Golden Wood"'
+step 06  edoras  ServerRegistration source=5 last_hop=4 name='moria' info='"The Black Pit"'
+step 06  grey_havens  ServerRegistration source=6 last_hop=1 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 06  lothlorien  ServerRegistration source=6 last_hop=0 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 06  moria  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 06  rivendale  ServerRegistration source=6 last_hop=4 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 06  theshire  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+# step 07: start server minastirith (id 7, connects to lothlorien)
+step 07  edoras  ServerRegistration source=7 last_hop=4 name='minastirith' info='"Tower of Guard"'
+step 07  grey_havens  ServerRegistration source=7 last_hop=1 name='minastirith' info='"Tower of Guard"'
+step 07  lothlorien  ServerRegistration source=7 last_hop=0 name='minastirith' info='"Tower of Guard"'
+step 07  minastirith  ServerRegistration source=1 last_hop=4 name='theshire' info='"Home of the Hobbits"'
+step 07  minastirith  ServerRegistration source=2 last_hop=4 name='rivendale' info='"Elronds House"'
+step 07  minastirith  ServerRegistration source=3 last_hop=4 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 07  minastirith  ServerRegistration source=4 last_hop=4 name='lothlorien' info='"The Golden Wood"'
+step 07  minastirith  ServerRegistration source=5 last_hop=4 name='moria' info='"The Black Pit"'
+step 07  minastirith  ServerRegistration source=6 last_hop=4 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 07  moria  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+step 07  rivendale  ServerRegistration source=7 last_hop=4 name='minastirith' info='"Tower of Guard"'
+step 07  theshire  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+# step 08: start server mirkwood (id 8, connects to rivendale)
+step 08  edoras  ServerRegistration source=8 last_hop=4 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  grey_havens  ServerRegistration source=8 last_hop=1 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  lothlorien  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  minastirith  ServerRegistration source=8 last_hop=4 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  mirkwood  ServerRegistration source=1 last_hop=2 name='theshire' info='"Home of the Hobbits"'
+step 08  mirkwood  ServerRegistration source=2 last_hop=2 name='rivendale' info='"Elronds House"'
+step 08  mirkwood  ServerRegistration source=3 last_hop=2 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 08  mirkwood  ServerRegistration source=4 last_hop=2 name='lothlorien' info='"The Golden Wood"'
+step 08  mirkwood  ServerRegistration source=5 last_hop=2 name='moria' info='"The Black Pit"'
+step 08  mirkwood  ServerRegistration source=6 last_hop=2 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 08  mirkwood  ServerRegistration source=7 last_hop=2 name='minastirith' info='"Tower of Guard"'
+step 08  moria  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  rivendale  ServerRegistration source=8 last_hop=0 name='mirkwood' info='"Wood of Greenleaves"'
+step 08  theshire  ServerRegistration source=8 last_hop=2 name='mirkwood' info='"Wood of Greenleaves"'
+# step 09: start server isengard (id 9, connects to edoras)
+step 09  edoras  ServerRegistration source=9 last_hop=0 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  grey_havens  ServerRegistration source=9 last_hop=1 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  isengard  ServerRegistration source=1 last_hop=6 name='theshire' info='"Home of the Hobbits"'
+step 09  isengard  ServerRegistration source=2 last_hop=6 name='rivendale' info='"Elronds House"'
+step 09  isengard  ServerRegistration source=3 last_hop=6 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 09  isengard  ServerRegistration source=4 last_hop=6 name='lothlorien' info='"The Golden Wood"'
+step 09  isengard  ServerRegistration source=5 last_hop=6 name='moria' info='"The Black Pit"'
+step 09  isengard  ServerRegistration source=6 last_hop=6 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 09  isengard  ServerRegistration source=7 last_hop=6 name='minastirith' info='"Tower of Guard"'
+step 09  isengard  ServerRegistration source=8 last_hop=6 name='mirkwood' info='"Wood of Greenleaves"'
+step 09  lothlorien  ServerRegistration source=9 last_hop=6 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  minastirith  ServerRegistration source=9 last_hop=4 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  mirkwood  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  moria  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  rivendale  ServerRegistration source=9 last_hop=4 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 09  theshire  ServerRegistration source=9 last_hop=2 name='isengard' info='"Angrenost, The Iron Fortres"'
+# step 10: start server osgiliath (id 10, connects to minastirith)
+step 10  edoras  ServerRegistration source=10 last_hop=4 name='osgiliath' info='"Citadel of the Stars"'
+step 10  grey_havens  ServerRegistration source=10 last_hop=1 name='osgiliath' info='"Citadel of the Stars"'
+step 10  isengard  ServerRegistration source=10 last_hop=6 name='osgiliath' info='"Citadel of the Stars"'
+step 10  lothlorien  ServerRegistration source=10 last_hop=7 name='osgiliath' info='"Citadel of the Stars"'
+step 10  minastirith  ServerRegistration source=10 last_hop=0 name='osgiliath' info='"Citadel of the Stars"'
+step 10  mirkwood  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+step 10  moria  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+step 10  osgiliath  ServerRegistration source=1 last_hop=7 name='theshire' info='"Home of the Hobbits"'
+step 10  osgiliath  ServerRegistration source=2 last_hop=7 name='rivendale' info='"Elronds House"'
+step 10  osgiliath  ServerRegistration source=3 last_hop=7 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 10  osgiliath  ServerRegistration source=4 last_hop=7 name='lothlorien' info='"The Golden Wood"'
+step 10  osgiliath  ServerRegistration source=5 last_hop=7 name='moria' info='"The Black Pit"'
+step 10  osgiliath  ServerRegistration source=6 last_hop=7 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 10  osgiliath  ServerRegistration source=7 last_hop=7 name='minastirith' info='"Tower of Guard"'
+step 10  osgiliath  ServerRegistration source=8 last_hop=7 name='mirkwood' info='"Wood of Greenleaves"'
+step 10  osgiliath  ServerRegistration source=9 last_hop=7 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 10  rivendale  ServerRegistration source=10 last_hop=4 name='osgiliath' info='"Citadel of the Stars"'
+step 10  theshire  ServerRegistration source=10 last_hop=2 name='osgiliath' info='"Citadel of the Stars"'
+# step 11: start server barad-dur (id 11, connects to minastirith)
+step 11  barad-dur  ServerRegistration source=1 last_hop=7 name='theshire' info='"Home of the Hobbits"'
+step 11  barad-dur  ServerRegistration source=10 last_hop=7 name='osgiliath' info='"Citadel of the Stars"'
+step 11  barad-dur  ServerRegistration source=2 last_hop=7 name='rivendale' info='"Elronds House"'
+step 11  barad-dur  ServerRegistration source=3 last_hop=7 name='grey_havens' info='"Gates to the Blessed Realm"'
+step 11  barad-dur  ServerRegistration source=4 last_hop=7 name='lothlorien' info='"The Golden Wood"'
+step 11  barad-dur  ServerRegistration source=5 last_hop=7 name='moria' info='"The Black Pit"'
+step 11  barad-dur  ServerRegistration source=6 last_hop=7 name='edoras' info='"Home of the Golden Hall of Meduseld"'
+step 11  barad-dur  ServerRegistration source=7 last_hop=7 name='minastirith' info='"Tower of Guard"'
+step 11  barad-dur  ServerRegistration source=8 last_hop=7 name='mirkwood' info='"Wood of Greenleaves"'
+step 11  barad-dur  ServerRegistration source=9 last_hop=7 name='isengard' info='"Angrenost, The Iron Fortres"'
+step 11  edoras  ServerRegistration source=11 last_hop=4 name='barad-dur' info='"The Dark Tower"'
+step 11  grey_havens  ServerRegistration source=11 last_hop=1 name='barad-dur' info='"The Dark Tower"'
+step 11  isengard  ServerRegistration source=11 last_hop=6 name='barad-dur' info='"The Dark Tower"'
+step 11  lothlorien  ServerRegistration source=11 last_hop=7 name='barad-dur' info='"The Dark Tower"'
+step 11  minastirith  ServerRegistration source=11 last_hop=0 name='barad-dur' info='"The Dark Tower"'
+step 11  mirkwood  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+step 11  moria  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+step 11  osgiliath  ServerRegistration source=11 last_hop=7 name='barad-dur' info='"The Dark Tower"'
+step 11  rivendale  ServerRegistration source=11 last_hop=4 name='barad-dur' info='"The Dark Tower"'
+step 11  theshire  ServerRegistration source=11 last_hop=2 name='barad-dur' info='"The Dark Tower"'
+# step 12: shut down ALL
+# final state
+barad-dur  adjacent_clients  []
+barad-dur  adjacent_servers  [7]
+barad-dur  routes  1 via 7, 2 via 7, 3 via 7, 4 via 7, 5 via 7, 6 via 7, 7 via 7, 8 via 7, 9 via 7, 10 via 7
+barad-dur  status_log  []
+edoras  adjacent_clients  []
+edoras  adjacent_servers  [4, 9]
+edoras  routes  1 via 4, 2 via 4, 3 via 4, 4 via 4, 5 via 4, 7 via 4, 8 via 4, 9 via 9, 10 via 4, 11 via 4
+edoras  status_log  []
+grey_havens  adjacent_clients  []
+grey_havens  adjacent_servers  [1]
+grey_havens  routes  1 via 1, 2 via 1, 4 via 1, 5 via 1, 6 via 1, 7 via 1, 8 via 1, 9 via 1, 10 via 1, 11 via 1
+grey_havens  status_log  []
+isengard  adjacent_clients  []
+isengard  adjacent_servers  [6]
+isengard  routes  1 via 6, 2 via 6, 3 via 6, 4 via 6, 5 via 6, 6 via 6, 7 via 6, 8 via 6, 10 via 6, 11 via 6
+isengard  status_log  []
+lothlorien  adjacent_clients  []
+lothlorien  adjacent_servers  [2, 6, 7]
+lothlorien  routes  1 via 2, 2 via 2, 3 via 2, 5 via 2, 6 via 6, 7 via 7, 8 via 2, 9 via 6, 10 via 7, 11 via 7
+lothlorien  status_log  []
+minastirith  adjacent_clients  []
+minastirith  adjacent_servers  [4, 10, 11]
+minastirith  routes  1 via 4, 2 via 4, 3 via 4, 4 via 4, 5 via 4, 6 via 4, 8 via 4, 9 via 4, 10 via 10, 11 via 11
+minastirith  status_log  []
+mirkwood  adjacent_clients  []
+mirkwood  adjacent_servers  [2]
+mirkwood  routes  1 via 2, 2 via 2, 3 via 2, 4 via 2, 5 via 2, 6 via 2, 7 via 2, 9 via 2, 10 via 2, 11 via 2
+mirkwood  status_log  []
+moria  adjacent_clients  []
+moria  adjacent_servers  [2]
+moria  routes  1 via 2, 2 via 2, 3 via 2, 4 via 2, 6 via 2, 7 via 2, 8 via 2, 9 via 2, 10 via 2, 11 via 2
+moria  status_log  []
+osgiliath  adjacent_clients  []
+osgiliath  adjacent_servers  [7]
+osgiliath  routes  1 via 7, 2 via 7, 3 via 7, 4 via 7, 5 via 7, 6 via 7, 7 via 7, 8 via 7, 9 via 7, 11 via 7
+osgiliath  status_log  []
+rivendale  adjacent_clients  []
+rivendale  adjacent_servers  [1, 4, 5, 8]
+rivendale  routes  1 via 1, 3 via 1, 4 via 4, 5 via 5, 6 via 4, 7 via 4, 8 via 8, 9 via 4, 10 via 4, 11 via 4
+rivendale  status_log  []
+theshire  adjacent_clients  []
+theshire  adjacent_servers  [2, 3]
+theshire  routes  2 via 2, 3 via 3, 4 via 2, 5 via 2, 6 via 2, 7 via 2, 8 via 2, 9 via 2, 10 via 2, 11 via 2
+theshire  status_log  []

@@ -88,10 +88,10 @@ class CRCTestManager(object):
         results = []
         for test in sorted(tests.keys()):
             # Open the test file
-            with open(os.path.join(_TESTCASES_DIR, '%s.cfg' % test), 'r') as fp:
+            with open(os.path.join(_TESTCASES_DIR, '%s.cfg' % test), 'r', encoding='utf-8') as fp:
                 test_config = json.load(fp)
                 # Redirect all output to a log file for this test
-                with open(os.path.join(_LOGS_DIR, '%s.log' % test), 'w') as logfile:
+                with open(os.path.join(_LOGS_DIR, '%s.log' % test), 'w', encoding='utf-8') as logfile:
                     sys.stdout = CRCLogger(logfile)
                     print("\n##############################################")
                     print("Beginning test " + test + "\n")

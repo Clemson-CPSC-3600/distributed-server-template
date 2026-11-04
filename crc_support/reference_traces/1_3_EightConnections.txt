@@ -1,0 +1,50 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start server rivendale (id 2, connects to theshire)
+# step 03: start server mirkwood (id 3, connects to rivendale)
+# step 04: start server lothlorin (id 4, connects to mirkwood)
+# step 05: start server isengard (id 5, connects to rivendale)
+# step 06: start server minastirith (id 6, connects to theshire)
+# step 07: start server osgiliath (id 7, connects to minastiri)
+# step 08: start server barad-dur (id 8, connects to minastiri)
+# step 09: shut down ALL
+# final state
+barad-dur  adjacent_clients  []
+barad-dur  adjacent_servers  []
+barad-dur  raw_bytes_received  []
+barad-dur  routes  (none)
+barad-dur  status_log  []
+isengard  adjacent_clients  []
+isengard  adjacent_servers  []
+isengard  raw_bytes_received  []
+isengard  routes  (none)
+isengard  status_log  []
+lothlorin  adjacent_clients  []
+lothlorin  adjacent_servers  []
+lothlorin  raw_bytes_received  []
+lothlorin  routes  (none)
+lothlorin  status_log  []
+minastirith  adjacent_clients  []
+minastirith  adjacent_servers  []
+minastirith  raw_bytes_received  ['0000000007000000000900166f7367696c69617468224369746164656c206f662074686520537461727322', '00000000080000000009001062617261642d64757222546865204461726b20546f77657222']
+minastirith  routes  (none)
+minastirith  status_log  []
+mirkwood  adjacent_clients  []
+mirkwood  adjacent_servers  []
+mirkwood  raw_bytes_received  ['0000000004000000000900116c6f74686c6f72696e2254686520476f6c64656e20576f6f6422']
+mirkwood  routes  (none)
+mirkwood  status_log  []
+osgiliath  adjacent_clients  []
+osgiliath  adjacent_servers  []
+osgiliath  raw_bytes_received  []
+osgiliath  routes  (none)
+osgiliath  status_log  []
+rivendale  adjacent_clients  []
+rivendale  adjacent_servers  []
+rivendale  raw_bytes_received  ['0000000003000000000800156d69726b776f6f6422576f6f64206f6620477265656e6c656176657322', '0000000005000000000800096973656e67617264224f727468616e6322']
+rivendale  routes  (none)
+rivendale  status_log  []
+theshire  adjacent_clients  []
+theshire  adjacent_servers  []
+theshire  raw_bytes_received  ['000000000200000000090010726976656e64616c6522456c726f6e64277320486f75736522', '0000000006000000000b00106d696e617374697269746822546f776572206f6620477561726422']
+theshire  routes  (none)
+theshire  status_log  []

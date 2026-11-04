@@ -2,15 +2,24 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Current File",
+      "name": "Python: Run Current src/ File (as module)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${file}",
+      "module": "src.${fileBasenameNoExtension}",
+      "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true,
       "env": {
         "PYTHONPATH": "${workspaceFolder}/src"
       }
+    },
+    {
+      "name": "Python: Current File (script; not for src/ files)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": true
     },
     {
       "name": "Python: Run Tests (All)",
@@ -19,6 +28,8 @@
       "module": "pytest",
       "args": [
         "tests",
+        "-m",
+        "bundle",
         "-v"
       ],
       "console": "integratedTerminal",
@@ -54,9 +65,31 @@
       "type": "debugpy",
       "request": "launch",
       "program": "run_tests.py",
-      "args": ["-v"],
+      "args": [
+        "-v"
+      ],
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "Python: Trace One Scenario",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "tools/trace_network.py",
+      "args": [
+        "--scenario",
+        "${input:crcScenario}"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "crcScenario",
+      "type": "promptString",
+      "description": "Scenario name (python tools/trace_network.py --list)",
+      "default": "3_1_OneServer_OneClient"
     }
   ]
 }

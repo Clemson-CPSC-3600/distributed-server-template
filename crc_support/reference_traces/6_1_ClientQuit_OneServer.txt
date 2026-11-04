@@ -1,0 +1,30 @@
+# step 01: start server theshire (id 1, first server)
+# step 02: start client frodobaggins (id 101) on theshire
+step 02  frodobaggins  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network frodobaggins'
+step 02  theshire  ClientRegistration source=101 last_hop=0 name='frodobaggins' info='"Test info"'
+# step 03: start client samgamgee (id 102) on theshire
+step 03  frodobaggins  ClientRegistration source=102 last_hop=1 name='samgamgee' info='"Test info"'
+step 03  samgamgee  ClientRegistration source=101 last_hop=1 name='frodobaggins' info='"Test info"'
+step 03  samgamgee  StatusUpdate source=1 destination=0 code=0x00 text='Welcome to the Clemson Relay Chat network samgamgee'
+step 03  theshire  ClientRegistration source=102 last_hop=0 name='samgamgee' info='"Test info"'
+# step 04: samgamgee runs MESSAGE 101 "Bye Frodo"
+step 04  frodobaggins  ClientChat source=102 destination=101 text='"Bye Frodo"'
+step 04  theshire  ClientChat source=102 destination=101 text='"Bye Frodo"'
+# step 05: frodobaggins runs QUIT "Leaving for the Undying Lands"
+step 05  samgamgee  ClientQuit source=101 text='"Leaving for the Undying Lands"'
+step 05  theshire  ClientQuit source=101 text='"Leaving for the Undying Lands"'
+# step 06: samgamgee runs MESSAGE 101 "I will miss you"
+step 06  samgamgee  StatusUpdate source=1 destination=0 code=0x01 text='Unknown ID 101'
+step 06  theshire  ClientChat source=102 destination=101 text='"I will miss you"'
+# step 07: shut down ALL
+# final state
+frodobaggins  chat_log  ['"Bye Frodo"']
+frodobaggins  known_clients  [102]
+frodobaggins  status_log  ['Welcome to the Clemson Relay Chat network frodobaggins']
+samgamgee  chat_log  []
+samgamgee  known_clients  []
+samgamgee  status_log  ['Unknown ID 101', 'Welcome to the Clemson Relay Chat network samgamgee']
+theshire  adjacent_clients  [102]
+theshire  adjacent_servers  []
+theshire  routes  102 via 102
+theshire  status_log  []
