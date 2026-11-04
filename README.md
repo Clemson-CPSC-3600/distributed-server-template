@@ -9,8 +9,16 @@ clients register, and route messages toward their destination over a
 self-learned spanning tree -- all with non-blocking `selectors`-based I/O and no
 threads.
 
-Read [PROTOCOL.md](PROTOCOL.md) before writing code. It is the authoritative
-wire-format and routing specification.
+## Reading path
+
+1. This README, for what you build and how it is graded.
+2. [PROTOCOL.md](PROTOCOL.md), the authoritative wire-format and routing
+   specification. Read it before writing code, including its two worked examples
+   and the `selectors` section.
+3. The docstrings in `src/ChatServer.py`, as you implement each method.
+4. [DEBUGGING.md](DEBUGGING.md), the first time a test fails.
+5. [TESTING.md](TESTING.md) and [GRADING.md](GRADING.md), for how the tests and
+   the grade work.
 
 ## What you implement
 
@@ -91,6 +99,22 @@ marker. It preserves the repository's development-trace capture and reports the
 lowest incomplete bundle first. See [TESTING.md](TESTING.md) for the full
 bundle-to-scenario map and focused commands.
 
+## Debug with network traces
+
+A test tells you *that* the network ended up wrong, not *where* it went wrong, and
+a stepping debugger struggles with many hosts on many threads. So you can render
+what every host received, plus each server's final routes, and compare it with a
+correct network:
+
+```bash
+python tools/trace_network.py --list                              # scenario names
+python tools/trace_network.py --scenario 3_1_OneServer_OneClient  # trace one
+```
+
+It writes logs under `trace-logs/` and points you at the earliest difference from
+the reference. See [DEBUGGING.md](DEBUGGING.md) for how to read them and for a
+symptom-to-cause guide.
+
 ## Suggested implementation order
 
 1. Stand up the listening socket and the selector event loop; accept incoming
@@ -106,10 +130,16 @@ bundle-to-scenario map and focused commands.
 
 ## Submission
 
-Commit and push your work to the GitHub Classroom repository. The Classroom
-workflow runs the same bundle authority as `python run_tests.py`; Gradescope
-also uses the instructor's canonical copy of these tests. See
-[GRADING.md](GRADING.md) for the scoring model.
+Submit through **Gradescope**, using the button on the Canvas assignment:
+
+1. Push your final commit to the `main` branch of your repository.
+2. Launch Gradescope from the Canvas assignment and submit via the **GitHub**
+   option, selecting your repository and the `main` branch.
+
+Pushing to GitHub alone does not submit the assignment. Gradescope runs the
+instructor's canonical copy of these tests against your `src/`, using the same
+bundle calculation as `python run_tests.py`. See [GRADING.md](GRADING.md) for the
+scoring model.
 
 Local AI-agent interactions and test-run snapshots are captured as described in
 [AI_POLICY.md](AI_POLICY.md) and [PROCESS_TRACKING.md](PROCESS_TRACKING.md).

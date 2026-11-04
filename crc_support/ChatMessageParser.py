@@ -27,7 +27,7 @@ class MessageParser:
                 msg =  StatusUpdateMessage(data)
             elif code == 0x81:
                 msg =  ClientChatMessage(data)
-            elif code == 0x01:
+            elif code == 0x02:
                 msg =  ServerQuitMessage(data)
             elif code == 0x82:
                 msg =  ClientQuitMessage(data)
@@ -144,7 +144,7 @@ class ClientChatMessage(Message):
         return pack("!BIII{0}s".format(len(content)), 0x81, source_id, destination_id, len(content), content.encode())
 
 
-# #### Server Shutdown Message (Extra Credit) ####
+# #### Server Shutdown Message (reserved: not used in this project) ####
 # MessageType (byte = 0x02)
 # SourceID (int)
 # ReplacementServerID (int)
@@ -163,7 +163,7 @@ class ServerQuitMessage(Message):
 
     @staticmethod
     def bytes(source_id, replacement_server_id, content):
-        return pack("!BIII{0}s".format(len(content)), 0x81, source_id, replacement_server_id, len(content), content.encode())
+        return pack("!BIII{0}s".format(len(content)), 0x02, source_id, replacement_server_id, len(content), content.encode())
 
 
 # #### User Quit Message ####

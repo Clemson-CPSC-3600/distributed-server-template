@@ -64,14 +64,12 @@ duplicate-id / unknown-id error-status replies.
 
 ## Scoring authority
 
-The same `BundleTestRunner.compute_bundle_status` calculation drives local
-output, GitHub Classroom, and Gradescope. `python run_tests.py` runs the tests
-and reports the grade; GitHub Classroom invokes `github_grader.py 1|2|3`, which
-reads the same cached bundle status; Gradescope invokes the instructor's
-canonical copy of these tests. All three derive the grade the same way: pass
-every test in Bundle 1 for a **C**, Bundles 1+2 for a **B**, and all three
-bundles for an **A**. No path uses per-test point weights or exact reference
-message-count snapshots.
+The same `BundleTestRunner.compute_bundle_status` calculation drives your local
+output and Gradescope. `python run_tests.py` runs the tests and reports the grade;
+Gradescope runs the instructor's canonical copy of these tests against your `src/`.
+Both derive the grade the same way: pass every test in Bundle 1 for a **C**,
+Bundles 1+2 for a **B**, and all three bundles for an **A**. Neither path uses
+per-test point weights or exact reference message-count snapshots.
 
 Run `python run_tests.py` to see the current result. Use `--all` for every
 failure or `-v` for full pytest tracebacks.

@@ -57,14 +57,11 @@ assert results[0]["passed"], results[0]["errors"]
 - `CRCTestManager` starts each server/client (`from src.ChatServer import
   CRCServer`, `from crc_support.ChatClient import CRCClient`) on its own thread
   using real localhost sockets, runs the commands, then compares the observed
-  `final_state` (adjacency lists, `hosts_db`, received messages, status logs)
-  against the `.cfg`. `results[0]["passed"]` is the scenario's pass/fail and
-  `results[0]["errors"]` describes any mismatch.
-- Each run also writes a human-readable transcript to `Logs/<scenario>.log` at
-  the repo root. Compare it against the matching golden transcript in
-  `crc_support/correct_logs/<scenario>.log` to see exactly where your network
-  diverges from the reference. (`Logs/` is git-ignored; `correct_logs/` is
-  tracked.)
+  final state against the `.cfg`. `results[0]["passed"]` is the scenario's
+  pass/fail and `results[0]["errors"]` describes any mismatch.
+- Each run also writes a transcript of everything printed to `Logs/<scenario>.log`
+  at the repo root, including your own `self.print_info(...)` calls. (`Logs/` is
+  git-ignored.)
 
 You never edit `crc_support/`. The graded tests only ever call through
 `CRCTestManager`; they do not import your server or inspect its private state.
@@ -93,6 +90,10 @@ command the runner prints beneath the failure, for example:
 python -m pytest "tests/test_bundle2_routing.py::test_message_one_hop" -v
 ```
 
-Then open `Logs/4_2_Message_One_Hop.log` next to
-`crc_support/correct_logs/4_2_Message_One_Hop.log` to see which message your
-server sent, dropped, or misrouted.
+Then trace that scenario to see which message your server dropped or misrouted:
+
+```bash
+python tools/trace_network.py --scenario 4_2_Message_One_Hop
+```
+
+[DEBUGGING.md](DEBUGGING.md) explains how to read the result.

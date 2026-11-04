@@ -230,11 +230,18 @@ __marimo__/
 # only the auth blob.
 .codex/auth.json
 
+# Rendered by tools/trace_network.py. The committed reference logs live in
+# crc_support/reference_traces/ as .txt, because *.log is ignored above.
+trace-logs/
+
+# Gradescope autograder build artifact (regenerate with
+# build-gradescope-autograder.sh; never commit the zip)
+autograder.zip
+
 # CRC test harness ephemeral output. CRCTestManager redirects each scenario's
 # stdout to Logs/<scenario>.log, and servers/clients may emit per-host
 # --log-file output to a Logs/ directory beside their own source. None of this
-# belongs in shared history. (The golden reference logs live, tracked, in
-# crc_support/correct_logs/.)
+# belongs in shared history.
 Logs/
 src/Logs/
 crc_support/Logs/

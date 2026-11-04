@@ -19,8 +19,8 @@ There is exactly one path between any two hosts, so routing is just "forward
 toward the destination along the tree." The tree is **static**: there is no
 server-failure detection or re-routing. The only dynamic membership changes the
 protocol handles are clients registering, clients quitting, and error-status
-replies. (A Server Quit message, `0x02`, exists in the parser as optional extra
-credit and is not exercised by the graded scenarios.)
+replies. (The parser also defines a Server Quit message, `0x02`. It is reserved:
+this project does not use it, and nothing you build should send it.)
 
 ### Simulated network layout
 
@@ -59,10 +59,26 @@ graph TD
     C103(["client 103: elrond"]) -.- S2
     C104(["client 104: bilbobaggins"]) -.- S3
     C107(["client 107: balin"]) -.- S5
-    C105(["client 105: peregrin"]) -.- S4
+    C105(["client 105: peregrin"]) -.- S7
     C106(["client 106: meriadoc"]) -.- S6
     C108(["client 108: sauron"]) -.- S11
 ```
+
+The same layout as text:
+
+| Server | Connects to on startup | Clients attached |
+|---|---|---|
+| 1 `theshire` | none (first server) | 101 `frodobaggins`, 102 `samgamgee` |
+| 2 `rivendale` | 1 `theshire` | 103 `elrond` |
+| 3 `grey_havens` | 1 `theshire` | 104 `bilbobaggins` |
+| 4 `lothlorien` | 2 `rivendale` | none |
+| 5 `moria` | 2 `rivendale` | 107 `balin` |
+| 6 `edoras` | 4 `lothlorien` | 106 `meriadoc` |
+| 7 `minastirith` | 4 `lothlorien` | 105 `peregrin` |
+| 8 `mirkwood` | 2 `rivendale` | none |
+| 9 `isengard` | 6 `edoras` | none |
+| 10 `osgiliath` | 7 `minastirith` | none |
+| 11 `barad-dur` | 7 `minastirith` | 108 `sauron` |
 
 Every machine (server or client) picks a random 32-bit id on joining, so your
 code must key all per-host state by id, never by position in the tree.
@@ -79,7 +95,7 @@ constructor in `crc_support/ChatMessageParser.py`.
 |---|---|---|
 | `0x00` | `ServerRegistrationMessage` | server ↔ server |
 | `0x01` | `StatusUpdateMessage` | server → server/client |
-| `0x02` | `ServerQuitMessage` | optional / extra credit |
+| `0x02` | `ServerQuitMessage` | reserved; not used in this project |
 | `0x80` | `ClientRegistrationMessage` | client → server, server ↔ server |
 | `0x81` | `ClientChatMessage` | client ↔ client (relayed by servers) |
 | `0x82` | `ClientQuitMessage` | client → server, server ↔ server/client |
@@ -161,6 +177,26 @@ clients (never back toward the departing client), then remove the client from
 for a client you have already removed is what stops the broadcast from looping
 around the tree forever.
 
+### Worked example: reading a message off the wire
+
+You never pack these bytes by hand, because the provided message classes do it,
+but being able to read them makes logs much less mysterious. Here is a client
+registration with source id `101`, last hop `0`, name `frodo`, and info `hi`:
+
+```text
+80  00 00 00 65  00 00 00 00  05  00 02  66 72 6f 64 6f  68 69
+```
+
+| Bytes | Field | Value |
+|---|---|---|
+| `80` | message type | `0x80`, ClientRegistrationMessage |
+| `00 00 00 65` | source id | 101 |
+| `00 00 00 00` | last hop id | 0, so the sender is adjacent |
+| `05` | client name length | 5 |
+| `00 02` | client info length | 2 |
+| `66 72 6f 64 6f` | client name | `frodo` |
+| `68 69` | client info | `hi` |
+
 ## Registration, adjacency, and routing
 
 ### The `last_hop_id == 0` adjacency convention
@@ -180,7 +216,7 @@ also treated as adjacent by the receiver.)
 ### `first_link_id` — the next hop toward a host
 
 For every host it learns about, a server stores a `ServerConnectionData` or
-`ClientConnectionData` in `self.hosts_db[id]` and records its
+`ClientConnectionData` in `self.hosts_db`, keyed by id, and records its
 **`first_link_id`**: the id of the adjacent host that is the first step on the
 path toward that destination.
 
@@ -188,12 +224,11 @@ path toward that destination.
 - If the host was learned via a relayed registration, `first_link_id` is the
   `last_hop_id` of that registration (the neighbor who told you about it).
 
-`send_message_to_host(destination_id, message)` then routes purely locally:
-look up `self.hosts_db[destination_id].first_link_id`, and append `message` to
-`self.hosts_db[first_link_id].write_buffer`. Because `first_link_id` always
-names an **adjacent** host (one you hold a direct socket to), the bytes leave on
-the correct link. The next server repeats the same lookup, so a message walks
-the spanning tree one hop at a time until it reaches its destination.
+Sending to a host is therefore a purely local decision. A server needs only its
+own record of the destination's first link, and because that first link always
+names an **adjacent** host (one it holds a direct socket to), the bytes leave on
+the correct link. The next server makes the same decision from its own records,
+so a message walks the spanning tree one hop at a time until it arrives.
 
 ### What a server does on registration
 
@@ -218,8 +253,49 @@ the same, with two differences: a newly adjacent client is sent a `0x00` Welcome
 status and told about every existing client, and the registration is broadcast
 to adjacent servers **and** adjacent clients (again skipping the source).
 
-Use `isinstance(host, ServerConnectionData)` / `isinstance(host,
-ClientConnectionData)` to tell stored hosts apart when seeding a new neighbor.
+Python's `isinstance()` tells you which kind of host you stored when you seed a
+new neighbor.
+
+### Worked example: a server joins, then a chat crosses the network
+
+This comes from the scenario `4_2_Message_One_Hop`, and every message below is
+in its reference log. `theshire` (id 1) and `rivendale` (id 2) are already
+connected, and client `frodobaggins` (id 101) is on `theshire`. Now `grey_havens`
+(id 3) starts and connects to `theshire`.
+
+```mermaid
+sequenceDiagram
+    participant G as grey_havens (3)
+    participant T as theshire (1)
+    participant R as rivendale (2)
+    G->>T: ServerRegistration source=3 last_hop=0
+    T->>G: ServerRegistration source=1 last_hop=1
+    T->>G: ServerRegistration source=2 last_hop=1
+    T->>G: ClientRegistration source=101 last_hop=1
+    T->>R: ServerRegistration source=3 last_hop=1
+```
+
+The same exchange as text, with what each receiver learns:
+
+| # | Receiver | Message | What the receiver learns |
+|---|---|---|---|
+| 1 | `theshire` | server 3, `last_hop=0` | Server 3 is adjacent, so 3 is reached via 3. |
+| 2 | `grey_havens` | server 1, `last_hop=1` | The source is the last hop, so 1 is adjacent: 1 is reached via 1. |
+| 3 | `grey_havens` | server 2, `last_hop=1` | 2 is not adjacent: 2 is reached via 1. |
+| 4 | `grey_havens` | client 101, `last_hop=1` | 101 is reached via 1. |
+| 5 | `rivendale` | server 3, `last_hop=1` | 3 is reached via 1, the neighbor who relayed it. |
+
+The server's first-link records are what a chat follows. Later in the scenario,
+client `elrond` (id 103, on `rivendale`) messages `frodobaggins`:
+
+| Hop | Host | Its record for 101 | What happens |
+|---|---|---|---|
+| 1 | `rivendale` | 101 via 1 | Forwards toward `theshire`. |
+| 2 | `theshire` | 101 via 101 | 101 is adjacent, so it delivers to the client. |
+
+Run `python tools/trace_network.py --scenario 4_2_Message_One_Hop` and open
+`trace-logs/4_2_Message_One_Hop/reference.log` to see this whole scenario,
+including the routes every server ends with.
 
 ## Non-blocking I/O with `selectors` (no threads)
 
@@ -245,50 +321,79 @@ individual call blocks.
 
 ### The pattern
 
-Create one selector (do this in `__init__`):
+The example below is a complete, self-contained program that has nothing to do
+with CRC: a server that sends each client's text back in upper case. It shows
+how the `selectors` calls fit together. Your server will look different, because
+it has more kinds of connections and its reads are handed to a message parser,
+but it uses the same calls.
 
 ```python
 import selectors
-self.sel = selectors.DefaultSelector()
+import socket
+
+
+class Connection:
+    """Whatever you want to remember about one socket."""
+    def __init__(self):
+        self.outbox = b""        # bytes waiting until the socket can take them
+
+
+sel = selectors.DefaultSelector()
+
+listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.bind(("127.0.0.1", 9000))
+listener.listen()
+listener.setblocking(False)
+sel.register(listener, selectors.EVENT_READ, None)   # data=None marks the listener
+
+running = True
+while running:
+    # select() returns the sockets that are ready. The timeout means it wakes up
+    # regularly even when nothing happens, so the loop can check `running`.
+    for key, mask in sel.select(timeout=0.1):
+        if key.data is None:                         # the listener: a new client
+            conn, _address = key.fileobj.accept()
+            conn.setblocking(False)
+            sel.register(conn, selectors.EVENT_READ | selectors.EVENT_WRITE, Connection())
+            continue
+
+        sock, state = key.fileobj, key.data
+        if mask & selectors.EVENT_READ:
+            data = sock.recv(4096)
+            if not data:                             # empty read: the peer closed
+                sel.unregister(sock)
+                sock.close()
+                continue
+            state.outbox += data.upper()
+        if mask & selectors.EVENT_WRITE and state.outbox:
+            sent = sock.send(state.outbox)           # may send only part of it
+            state.outbox = state.outbox[sent:]
+
+for key in list(sel.get_map().values()):             # every registered socket
+    sel.unregister(key.fileobj)
+    key.fileobj.close()
+sel.close()
 ```
 
-Register each socket non-blocking, declaring whether you care about reading,
-writing, or both, and attach a data object that carries this connection's state.
-In this project that object is a `BaseConnectionData` / `ServerConnectionData` /
-`ClientConnectionData`, and its `write_buffer` holds bytes queued to send. The
-listening socket is registered with `data=None` so you can tell it apart:
+Two more selector calls you will want:
 
-```python
-sock.setblocking(False)
-events = selectors.EVENT_READ | selectors.EVENT_WRITE   # or just EVENT_READ
-self.sel.register(sock, events, connection_data)
-```
+- `sel.modify(sock, events, new_data)` replaces the events and the data attached
+  to a socket that is already registered.
+- `sel.get_map()` is a mapping of everything registered. Wrap its values in
+  `list()` before a loop that unregisters sockets, as above, because the mapping
+  changes as you go.
 
-Drive everything from one loop. `select()` hands back the ready sockets plus a
-mask of what each is ready for; act only on those:
+Three things that trip students up:
 
-```python
-for io_device, event_mask in self.sel.select(timeout=0.1):
-    sock = io_device.fileobj
-    data = io_device.data
-    if event_mask & selectors.EVENT_READ:
-        recv_data = sock.recv(4096)
-        if recv_data:
-            self.handle_messages(io_device, recv_data)
-        else:                                            # empty read = peer closed
-            self.sel.unregister(sock); sock.close()
-    if event_mask & selectors.EVENT_WRITE:
-        if data.write_buffer:                            # only send when there is something
-            sent = sock.send(data.write_buffer)
-            data.write_buffer = data.write_buffer[sent:] # keep only what wasn't sent
-```
-
-Two things that trip students up: (1) `select()` almost always reports a socket
-as writable, so you **must** check `write_buffer` is non-empty before sending and
-trim it afterward, or you will spin sending empty/duplicate bytes; (2) the short
-`timeout` matters -- it lets the loop surface each pass to check the shared
-`request_terminate` flag instead of blocking forever inside `select()`. When you
-are done with a socket, unregister and close it; close the selector on shutdown.
+1. `select()` almost always reports a socket as writable, so send only when there
+   is something queued, and drop what you sent. Otherwise you will spin sending
+   empty or duplicate bytes.
+2. Without the short `timeout`, `select()` can block forever and your server can
+   never notice it has been asked to shut down.
+3. Scenarios restart servers on the same fixed ports seconds apart. Without
+   `SO_REUSEADDR` on the listening socket, `bind()` can fail with "address already
+   in use" because the previous run's port has not been released yet.
 
 ### Checklist
 
@@ -308,14 +413,14 @@ are done with a socket, unregister and close it; close the selector on shutdown.
 5. An empty `recv()` means the peer closed the connection -- unregister and close
    that socket.
 6. `cleanup()` (called when the loop exits) must unregister and close every
-   socket and close the selector. You can enumerate registered sockets with
-   `list(self.sel._fd_to_key.values())`.
+   socket and close the selector.
 
 ## Grading-visible state
 
-The harness checks your server's observable state after each scenario, so keep
+After each scenario the harness looks at your server's observable state, so keep
 these accurate: `self.hosts_db` (id → connection data for every known host),
 `self.adjacent_server_ids`, `self.adjacent_user_ids`, and
-`self.status_updates_log`. Grading judges this final state and the messages
-clients receive -- not the exact number or ordering of the messages your server
-emits, as long as the network converges to the correct state.
+`self.status_updates_log`. Grading judges final state and the messages clients
+receive, not the exact number or ordering of the messages your server emits, as
+long as the network converges to the correct state. The grader does not require a
+particular private design.
