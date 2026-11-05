@@ -129,6 +129,7 @@ for host 3 is 1." A `?` means the object you stored for that host has no
 | A scenario is slow, but does finish | The network never went quiet. Something is stuck in a `write_buffer`, or a host keeps sending. |
 | A host receives nothing at all | Check the listening socket and the event loop. Is the socket registered, and do you read when a socket is readable? |
 | Messages sit unsent, so the next hop never gets them | Queued bytes only leave on a write event. Is every accepted socket registered for writing? Do you send when the buffer is non-empty? |
+| `test_never_sends_an_empty_write_buffer` fails, or you see `empty sends:` | Check that the write buffer is non-empty before you call `send()`. |
 | The same message is received over and over, or `extra` copies appear | You are not removing sent bytes from the write buffer, or a broadcast is going back toward where it came from. |
 | A new server does not know hosts that joined before it | The seeding step in "What a server does on registration" in [PROTOCOL.md](PROTOCOL.md). |
 | A host two or more hops away never hears about a new host | Rebroadcast. Each server has to pass a registration on to its other neighbors. |

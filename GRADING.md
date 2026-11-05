@@ -21,7 +21,8 @@ Bundle 1 requires:
   status;
 - telling a newly connected client about the clients already on the server;
 - routing a chat message between two clients on the same server (zero hops);
-- handling a client quit on a single server.
+- handling a client quit on a single server;
+- never calling `send()` with an empty write buffer.
 
 Scenarios: `1_1_TwoConnections`, `3_1_OneServer_OneClient`,
 `3_2_OneServer_TwoClients`, `4_1_Message_Zero_Hops`, `6_1_ClientQuit_OneServer`.

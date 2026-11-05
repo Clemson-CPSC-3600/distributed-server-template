@@ -106,7 +106,8 @@ class CRCTestManager(object):
                         'test':test, 
                         'passed':passed, 
                         'errors':errors,
-                        'exception':exception
+                        'exception':exception,
+                        'empty_sends':quiescence.Traffic.empty_sends
                     })
                     print("\nTest passed:" + str(passed))
                     sys.stdout = sys.__stdout__

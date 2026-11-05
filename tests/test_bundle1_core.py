@@ -44,6 +44,17 @@ def test_message_zero_hops():
 
 
 @pytest.mark.bundle(1)
+def test_never_sends_an_empty_write_buffer():
+    result = _run_scenario("4_1_Message_Zero_Hops")
+    assert result["passed"], "Fix test_message_zero_hops first. " + str(result["errors"])
+    assert result["empty_sends"] == 0, (
+        f"Your server called send() with nothing to send {result['empty_sends']} time(s). "
+        "A socket is writable almost all the time, so check that write_buffer is "
+        "non-empty before sending (PROTOCOL.md, Checklist item 4)."
+    )
+
+
+@pytest.mark.bundle(1)
 def test_client_quit_one_server():
     result = _run_scenario("6_1_ClientQuit_OneServer")
     assert result["passed"], result["errors"]

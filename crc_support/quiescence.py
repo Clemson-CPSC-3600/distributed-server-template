@@ -7,6 +7,9 @@ things here replace the guessing.  Neither asks anything new of your server.
 
 ``QuietSelector`` reports a socket as writable only when its connection has bytes
 in ``write_buffer``, so a host with nothing to do really does sleep in select().
+The exception is one report with an empty buffer each time a socket is registered
+or modified.  A real selector does that constantly, and a server has to cope with
+it by not sending, which ``CountingSocket`` checks by counting empty sends.
 
 ``wait_for_quiet`` waits until the network has finished, rather than for a time.
 The network is quiet when every host is parked waiting for input, nothing is
@@ -35,12 +38,19 @@ class Traffic:
     _lock = threading.Lock()
     sent = 0
     received = 0
+    empty_sends = 0
 
     @classmethod
     def reset(cls):
         with cls._lock:
             cls.sent = 0
             cls.received = 0
+            cls.empty_sends = 0
+
+    @classmethod
+    def add_empty_send(cls):
+        with cls._lock:
+            cls.empty_sends += 1
 
     @classmethod
     def add_sent(cls, count):
@@ -65,12 +75,16 @@ class CountingSocket(socket.socket):
     count stays out of balance, so its scenario uses the old fixed waits.
     """
 
-    def send(self, *args, **kwargs):
-        count = super().send(*args, **kwargs)
+    def send(self, data, *args, **kwargs):
+        if len(data) == 0:
+            Traffic.add_empty_send()
+        count = super().send(data, *args, **kwargs)
         Traffic.add_sent(count)
         return count
 
     def sendall(self, data, *args, **kwargs):
+        if len(data) == 0:
+            Traffic.add_empty_send()
         super().sendall(data, *args, **kwargs)
         Traffic.add_sent(len(data))
 
@@ -87,11 +101,30 @@ class QuietSelector(selectors.SelectSelector):
         super().__init__()
         self.idle = False       # True while this host is waiting for input
         self.generation = 0     # Counts the times this host has been given work
+        self.pending_probes = set()  # Sockets still owed one report with an empty buffer
 
-    @staticmethod
-    def _wants_write(key):
+    def register(self, fileobj, events, data=None):
+        key = super().register(fileobj, events, data)
+        if events & selectors.EVENT_WRITE:
+            self.pending_probes.add(key.fd)
+        return key
+
+    def unregister(self, fileobj):
+        key = super().unregister(fileobj)
+        self.pending_probes.discard(key.fd)
+        return key
+
+    def modify(self, fileobj, events, data=None):
+        key = super().modify(fileobj, events, data)
+        if events & selectors.EVENT_WRITE:
+            self.pending_probes.add(key.fd)
+        return key
+
+    def _wants_write(self, key):
         if not key.events & selectors.EVENT_WRITE:
             return False
+        if key.fd in self.pending_probes:
+            return True
         # Data without a write_buffer is not ours to interpret: report it the way
         # any other selector would.
         return not hasattr(key.data, "write_buffer") or bool(key.data.write_buffer)
@@ -117,6 +150,8 @@ class QuietSelector(selectors.SelectSelector):
                 events |= selectors.EVENT_READ
             if key.fd in writable:
                 events |= selectors.EVENT_WRITE
+                if not getattr(key.data, "write_buffer", b""):
+                    self.pending_probes.discard(key.fd)
             if events:
                 ready.append((key, events))
         if ready:
@@ -143,7 +178,7 @@ def _snapshot(threads):
             sel = getattr(app, "sel", None)
             if not isinstance(sel, QuietSelector):
                 raise TypeError("server is not using QuietSelector")
-            if not sel.idle:
+            if not sel.idle or sel.pending_probes:
                 return None
             selector_map = sel.get_map()
             if selector_map is None:

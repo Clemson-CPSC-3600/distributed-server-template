@@ -57,11 +57,39 @@ def _select_until(sel, predicate):
     pytest.fail("the selector never reported the expected event")
 
 
-def test_socket_with_nothing_queued_is_not_reported_writable(pair):
+def test_empty_buffer_is_reported_writable_once_per_registration(pair):
     sel = QuietSelector()
-    sel.register(pair[0], selectors.EVENT_READ | selectors.EVENT_WRITE, Connection())
+    data = Connection()
+    key = sel.register(pair[0], selectors.EVENT_READ | selectors.EVENT_WRITE, data)
+    assert _select_until(sel, bool) == [(key, selectors.EVENT_WRITE)]
+    assert sel.select() == []
+    new_key = sel.modify(pair[0], selectors.EVENT_READ | selectors.EVENT_WRITE, Connection())
+    assert _select_until(sel, bool) == [(new_key, selectors.EVENT_WRITE)]
     assert sel.select() == []
     sel.close()
+
+
+def test_read_only_socket_gets_no_write_report(pair):
+    sel = QuietSelector()
+    sel.register(pair[0], selectors.EVENT_READ, Connection())
+    assert sel.select() == []
+    sel.close()
+
+
+def test_not_quiet_until_the_empty_report_is_delivered(pair):
+    sel = QuietSelector()
+    sel.register(pair[0], selectors.EVENT_READ | selectors.EVENT_WRITE, Connection())
+    sel.idle = True
+    assert not wait_for_quiet([_entry(sel)], 0.05, 0)
+    sel.close()
+
+
+def test_empty_sends_are_counted(pair):
+    pair[1].send(b"")
+    pair[1].sendall(b"")
+    assert Traffic.empty_sends == 2
+    pair[1].send(b"x")
+    assert Traffic.empty_sends == 2
 
 
 def test_socket_with_bytes_queued_is_reported_writable(pair):
@@ -75,7 +103,7 @@ def test_socket_with_bytes_queued_is_reported_writable(pair):
 
 def test_incoming_bytes_are_reported_readable(pair):
     sel = QuietSelector()
-    key = sel.register(pair[0], selectors.EVENT_READ | selectors.EVENT_WRITE, Connection())
+    key = sel.register(pair[0], selectors.EVENT_READ, Connection())
     pair[1].send(b"x")
     assert _select_until(sel, bool) == [(key, selectors.EVENT_READ)]
     sel.close()
@@ -104,7 +132,8 @@ def _entry(sel):
 
 def _park(sel):
     """Put the selector in the state of a host waiting in select()."""
-    sel.select()
+    while sel.select():
+        pass
     assert sel.idle
 
 
