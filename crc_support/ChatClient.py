@@ -1,6 +1,7 @@
 from optparse import OptionParser
 from socket import *
 import os, sys, threading
+import select
 import selectors
 import logging
 import types
@@ -11,6 +12,8 @@ class CRCClient(object):
     
     def __init__(self, options, run_on_localhost=False):
         self.request_terminate = False
+        self.idle = True        # False while there is input this client has not finished with
+        self.generation = 0     # Counts the reads this client has done
 
         self.serveraddr = options.serverhost
         self.serverport = options.serverport
@@ -64,18 +67,27 @@ class CRCClient(object):
         
 
     def start_listening_to_server(self):
-        x = threading.Thread(target=self.listen_for_server_input)
-        x.start()
+        self.idle = False
+        self.listener = threading.Thread(target=self.listen_for_server_input)
+        self.listener.start()
 
 
     def listen_for_server_input(self):
-        while not self.request_terminate:
-            rcvd = self.sock.recv(2048)
-            if rcvd:
-                self.handle_messages(rcvd)
-            else:
-                self.print_info("Server has disconnected!")
-                self.request_terminate = True
+        try:
+            while not self.request_terminate:
+                self.idle = True
+                if not select.select([self.sock], [], [], 0.02)[0]:
+                    continue
+                self.idle = False
+                self.generation += 1
+                rcvd = self.sock.recv(2048)
+                if rcvd:
+                    self.handle_messages(rcvd)
+                else:
+                    self.print_info("Server has disconnected!")
+                    self.request_terminate = True
+        finally:
+            self.idle = True
 
     # This is a function stub that will be completed in a future assignment
     def handle_messages(self, recv_data):

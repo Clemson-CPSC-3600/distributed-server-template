@@ -45,8 +45,8 @@ REFERENCE_DIR = REPO_ROOT / "crc_support" / "reference_traces"
 OUTPUT_DIR = REPO_ROOT / "trace-logs"
 SOLUTION = REPO_ROOT / "solution" / "ChatServer.py"
 
-# A scenario that outlives this has a host that will not shut down.  The longest
-# reference scenario takes about 35 seconds on a heavily loaded machine.
+# A scenario that outlives this has a host that will not shut down.  A scenario
+# whose network never goes quiet takes up to about 40 seconds.
 SCENARIO_TIMEOUT_SECONDS = 180
 
 BUNDLE_FILES = {
@@ -361,6 +361,7 @@ def run_scenario(scenario: str, server_path: Optional[Path], result_path: Path) 
                 "errors": result["errors"] or "",
                 "exception": repr(result["exception"]) if result["exception"] else "",
                 "crashes": crashes,
+                "empty_sends": result.get("empty_sends", 0),
                 "trace": render_trace(steps, events, _state_lines(servers, clients)),
             }
         ),
@@ -419,6 +420,8 @@ def report_scenario(scenario: str) -> bool:
         print(f"    {line}")
     if result["exception"]:
         print(f"    {result['exception']}")
+    if result.get("empty_sends"):
+        print(f"  empty sends: send() was called with nothing to send {result['empty_sends']} time(s)")
     for crash in result["crashes"][:3]:
         where = f" at {crash['where']}" if crash["where"] else ""
         print(f"  crash: {crash['host']}{where}: {crash['error']}")

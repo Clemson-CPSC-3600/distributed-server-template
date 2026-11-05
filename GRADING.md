@@ -52,7 +52,8 @@ Bundle 3 requires:
 - building and serving a large network (up to eleven servers, eight clients);
 - a welcome-status path that is correct even in the larger topology;
 - propagating a client quit across the entire eleven-server network without the
-  broadcast looping.
+  broadcast looping;
+- never calling `send()` with an empty write buffer.
 
 Scenarios: `1_3_EightConnections`, `2_3_ElevenServers`,
 `3_4_ElevenServers_EightClients`, `4_3_Message_Three_Hops`, `5_1_WelcomeStatus`,

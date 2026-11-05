@@ -2,6 +2,13 @@ import threading, os, re, time, sys, json, copy
 from optparse import OptionParser
 from abc import ABC, abstractmethod
 
+from crc_support.quiescence import Traffic, wait_for_quiet
+
+# How long a WAIT gives the network to finish before deciding it never will.  A
+# correct network needs a small fraction of a second, so this only matters on an
+# extremely overloaded machine or for a server that never stops sending.
+QUIET_DEADLINE_SECONDS = 10.0
+
 class CRCTest(ABC):
     
     def __init__(self, CRCServerModule, CRCClientModule, catch_exceptions):
@@ -13,6 +20,7 @@ class CRCTest(ABC):
         self.threads = {}
         self.servers = {}
         self.clients = {}
+        self.quiet_deadline_missed = False
 
         ######################################################################
         # The mapping between commands and functions
@@ -147,6 +155,8 @@ class CRCTest(ABC):
             self.threads.clear()
             self.servers.clear()
             self.clients.clear()
+            self.quiet_deadline_missed = False
+            Traffic.reset()
 
             # Loop through all of the commands in this test
             for command in test['commands']:
@@ -165,6 +175,13 @@ class CRCTest(ABC):
             # Wait until all of the threads have finished running
             for x in self.threads.values():
                 x['thread'].join()
+
+            # A client's listening thread must not still be reading during the next
+            # scenario, where its bytes would throw off the count.
+            for x in self.threads.values():
+                listener = getattr(x['app'], 'listener', None)
+                if listener:
+                    listener.join(5)
 
             passed, errors = self.check_test_results(test, self.servers, self.clients)
             return passed, errors, None
@@ -262,10 +279,15 @@ class CRCTest(ABC):
 
 
     ######################################################################
-    # One arg: time to wait
+    # One arg: the seconds this step allowed back when it was a fixed sleep. It now
+    # waits for the network to go quiet. After one wait misses its deadline, the rest
+    # use that shorter time, so a server that never goes quiet still fails promptly.
     def wait(self, args):
-        print("*CMD.........\tWaiting... %s" % args)
-        time.sleep(float(args))
+        print("*CMD.........\tWaiting for the network to go quiet...")
+        seconds = float(args)
+        deadline = seconds if self.quiet_deadline_missed else max(seconds, QUIET_DEADLINE_SECONDS)
+        if not wait_for_quiet(self.threads.values(), deadline, seconds):
+            self.quiet_deadline_missed = True
 
 
     ######################################################################
