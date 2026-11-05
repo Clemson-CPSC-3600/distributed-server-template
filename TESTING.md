@@ -86,9 +86,9 @@ You never edit `crc_support/`. The graded tests only ever call through
 
 | Bundle | Test file | Scenarios |
 |---|---|---|
-| 1 (C) | `tests/test_bundle1_core.py` | `1_1_TwoConnections`, `3_1_OneServer_OneClient`, `3_2_OneServer_TwoClients`, `4_1_Message_Zero_Hops`, `6_1_ClientQuit_OneServer`, plus the no-empty-sends check on `4_1_Message_Zero_Hops` |
+| 1 (C) | `tests/test_bundle1_core.py` | `1_1_TwoConnections`, `3_1_OneServer_OneClient`, `3_2_OneServer_TwoClients`, `4_1_Message_Zero_Hops`, `6_1_ClientQuit_OneServer` |
 | 2 (B) | `tests/test_bundle2_routing.py` | `1_2_FourConnections`, `2_1_TwoServers`, `2_2_FourServers`, `3_3_ThreeServers_FourClients`, `4_2_Message_One_Hop`, `5_2_DuplicateID_Server`, `5_3_DuplicateID_Client`, `5_4_UnknownID_Client`, `6_2_ClientQuit_ThreeServers` |
-| 3 (A) | `tests/test_bundle3_multihop.py` | `1_3_EightConnections`, `2_3_ElevenServers`, `3_4_ElevenServers_EightClients`, `4_3_Message_Three_Hops`, `5_1_WelcomeStatus`, `6_3_ClientQuit_ElevenServers` |
+| 3 (A) | `tests/test_bundle3_multihop.py` | `1_3_EightConnections`, `2_3_ElevenServers`, `3_4_ElevenServers_EightClients`, `4_3_Message_Three_Hops`, `5_1_WelcomeStatus`, `6_3_ClientQuit_ElevenServers`, plus the no-empty-sends check on `4_3_Message_Three_Hops` |
 
 The component order and dependencies are declared in
 `project-template-config.json`; the runner uses them only to focus feedback and

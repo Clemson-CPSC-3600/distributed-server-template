@@ -52,3 +52,14 @@ def test_welcome_status():
 def test_client_quit_eleven_servers():
     result = _run_scenario("6_3_ClientQuit_ElevenServers")
     assert result["passed"], result["errors"]
+
+
+@pytest.mark.bundle(3)
+def test_never_sends_an_empty_write_buffer():
+    result = _run_scenario("4_3_Message_Three_Hops")
+    assert result["passed"], "Fix test_message_three_hops first. " + str(result["errors"])
+    assert result["empty_sends"] == 0, (
+        f"Your server called send() with nothing to send {result['empty_sends']} time(s). "
+        "A socket is writable almost all the time, so check that write_buffer is "
+        "non-empty before sending (PROTOCOL.md, Checklist item 4)."
+    )

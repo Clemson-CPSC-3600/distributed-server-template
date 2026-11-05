@@ -409,7 +409,7 @@ Three things that trip students up:
    `select()`, `recv()`, `accept()`, or `send()` call.
 4. Queue outgoing bytes in a connection's `write_buffer`; on an `EVENT_WRITE`,
    send the buffer only if it is non-empty and clear it afterward so you never
-   resend the same bytes. Bundle 1 includes a test that fails if your server ever
+   resend the same bytes. Bundle 3 includes a test that fails if your server ever
    calls `send()` with nothing to send.
 5. An empty `recv()` means the peer closed the connection -- unregister and close
    that socket.

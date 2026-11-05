@@ -21,8 +21,7 @@ Bundle 1 requires:
   status;
 - telling a newly connected client about the clients already on the server;
 - routing a chat message between two clients on the same server (zero hops);
-- handling a client quit on a single server;
-- never calling `send()` with an empty write buffer.
+- handling a client quit on a single server.
 
 Scenarios: `1_1_TwoConnections`, `3_1_OneServer_OneClient`,
 `3_2_OneServer_TwoClients`, `4_1_Message_Zero_Hops`, `6_1_ClientQuit_OneServer`.
@@ -53,7 +52,8 @@ Bundle 3 requires:
 - building and serving a large network (up to eleven servers, eight clients);
 - a welcome-status path that is correct even in the larger topology;
 - propagating a client quit across the entire eleven-server network without the
-  broadcast looping.
+  broadcast looping;
+- never calling `send()` with an empty write buffer.
 
 Scenarios: `1_3_EightConnections`, `2_3_ElevenServers`,
 `3_4_ElevenServers_EightClients`, `4_3_Message_Three_Hops`, `5_1_WelcomeStatus`,
