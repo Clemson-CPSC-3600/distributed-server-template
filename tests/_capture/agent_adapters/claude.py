@@ -46,7 +46,8 @@ class ClaudeAdapter:
             if not explicit_home and not evidence_root.exists() and not self.is_present():
                 return IngestResult(adapter_name=self.name)
 
-            copied = claude_ingest.ingest_transcripts(repo, since or 0.0)
+            skipped: list = []
+            copied = claude_ingest.ingest_transcripts(repo, skipped=skipped)
             if not copied and not evidence_root.exists():
                 return IngestResult(adapter_name=self.name)
 
@@ -55,6 +56,7 @@ class ClaudeAdapter:
             return IngestResult(
                 adapter_name=self.name,
                 rollouts_copied=list(copied),
+                rollouts_skipped=list(skipped),
                 summaries_built=list(built),
                 source_hashes=ai_traces.collect_hashes(repo),
             )

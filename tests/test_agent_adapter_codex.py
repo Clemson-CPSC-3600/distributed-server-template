@@ -36,9 +36,8 @@ def test_codex_adapter_ingest_normalizes_trace_artifacts(tmp_path, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     called = {}
 
-    def fake_ingest(r, ts):
+    def fake_ingest(r, skipped=None, ancestor_cwd=None):
         called["repo"] = r
-        called["ts"] = ts
         raw = r / ".ai-traces" / "codex" / "raw" / "rollouts" / "rollout-x.jsonl"
         raw.parent.mkdir(parents=True, exist_ok=True)
         raw.write_text(
@@ -60,7 +59,6 @@ def test_codex_adapter_ingest_normalizes_trace_artifacts(tmp_path, monkeypatch):
     adapter = CodexAdapter()
     result = adapter.ingest(repo, since=1234.5)
     assert called["repo"] == repo
-    assert called["ts"] == 1234.5
     assert result.adapter_name == "codex"
     assert len(result.rollouts_copied) == 1
     assert (repo / ".ai-traces" / "codex" / "normalized" / "sess-x.jsonl").exists()
@@ -68,21 +66,39 @@ def test_codex_adapter_ingest_normalizes_trace_artifacts(tmp_path, monkeypatch):
     assert any(h["path"].endswith("interaction-stream.jsonl") for h in result.source_hashes)
 
 
-def test_codex_adapter_ingest_handles_zero_since(tmp_path, monkeypatch):
-    """since=None collapses to 0.0 when forwarded."""
+def test_codex_adapter_ingest_calls_ingest_transcripts_with_repo_only(tmp_path, monkeypatch):
+    """codex_ingest.ingest_transcripts no longer takes a since/session-start
+    argument (time filtering moved to the course-start floor, keyed on
+    file mtime, inside codex_ingest itself) — the adapter must call it with
+    just the repo plus the ``skipped`` out-list, regardless of what
+    ``since`` it was given.
+
+    The out-list is asserted here because the adapter swallows every
+    exception: a signature mismatch degrades silently to "this adapter
+    ingested nothing" rather than raising (bead 8g5.7)."""
     repo = tmp_path / "r"
     repo.mkdir()
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     called = {}
 
-    def fake_ingest(r, ts):
-        called["ts"] = ts
+    def fake_ingest(r, skipped=None, ancestor_cwd=None):
+        called["repo"] = r
+        called["skipped"] = skipped
+        called["ancestor_cwd"] = ancestor_cwd
         return []
 
     monkeypatch.setattr(
         "tests._capture.codex_ingest.ingest_transcripts", fake_ingest)
     CodexAdapter().ingest(repo, since=None)
-    assert called["ts"] == 0.0
+    assert called["repo"] == repo
+    assert called["ancestor_cwd"] == [], (
+        "adapter must hand ingest a list to record ancestor-cwd rollouts "
+        "into, or a workspace-root mismatch stays silent"
+    )
+    assert called["skipped"] == [], (
+        "adapter must hand ingest a list to record matched-but-skipped "
+        "rollouts into, or capture_counts loses its matched signal"
+    )
     assert not (repo / ".ai-traces").exists()
 
 
@@ -92,7 +108,7 @@ def test_codex_adapter_ingest_skips_default_home_without_repo_config(tmp_path, m
     repo.mkdir()
     monkeypatch.delenv("CODEX_HOME", raising=False)
 
-    def should_not_scan(r, ts):
+    def should_not_scan(r):
         raise AssertionError("default Codex home should not be scanned")
 
     monkeypatch.setattr(
@@ -108,7 +124,7 @@ def test_codex_adapter_ingest_swallows_exceptions(tmp_path, monkeypatch):
     repo.mkdir()
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
 
-    def boom(r, ts):
+    def boom(r):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(

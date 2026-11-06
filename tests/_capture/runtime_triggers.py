@@ -127,6 +127,61 @@ def configure_git_hooks(repo: Path, hooks_dir: str = ".githooks") -> bool:
         return False
 
 
+def sitecustomize_installed(repo: Path) -> bool:
+    """True iff the project's local venv currently carries our
+    sitecustomize.py. False when running outside a venv, in a venv that
+    isn't the project's, or when the payload was never landed."""
+    try:
+        venv = active_venv()
+        if venv is None or not is_local_venv(venv, repo):
+            return False
+        site_packages = _venv_site_packages(venv)
+        if site_packages is None:
+            return False
+        return (site_packages / "sitecustomize.py").is_file()
+    except Exception:
+        return False
+
+
+def hooks_path_set(repo: Path) -> bool:
+    """True iff `core.hooksPath` is configured (any value) on this repo."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "--local", "core.hooksPath"],
+            cwd=str(repo), capture_output=True, text=True,
+        )
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except Exception:
+        return False
+
+
+def git_dir_is_file(repo: Path) -> bool:
+    """True iff `<repo>/.git` is a FILE rather than a directory.
+
+    Linked worktrees and submodules use a `.git` *file* containing a
+    `gitdir:` pointer. Code that assumes a directory (e.g. writing a lock
+    or hook under `.git/`) silently no-ops there, so the health manifest
+    reports the condition instead of leaving it invisible.
+    """
+    try:
+        return (repo / ".git").is_file()
+    except OSError:
+        return False
+
+
+def installation_state(repo: Path) -> dict:
+    """Bootstrap booleans for the capture-health manifest.
+
+    Stable across runs by construction (booleans only) — see
+    capture_health for why that matters.
+    """
+    return {
+        "sitecustomize_installed": sitecustomize_installed(repo),
+        "hooks_path_set": hooks_path_set(repo),
+        "git_dir_is_file": git_dir_is_file(repo),
+    }
+
+
 def ensure_installed(repo: Path) -> None:
     """Idempotently install all editor-agnostic capture triggers.
 

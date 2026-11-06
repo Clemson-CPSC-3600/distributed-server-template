@@ -498,3 +498,31 @@ def test_pytest_sessionstart_self_installs_capture_triggers(tmp_git_repo_with_ca
     )
     assert cfg.stdout.strip() == ".githooks", \
         f"core.hooksPath not set; got {cfg.stdout!r}"
+
+
+# --- capture-health manifest: bootstrap state ------------------------------
+
+def test_capture_health_detects_git_dir_is_file_in_worktree(tmp_git_repo_with_capture):
+    """In a linked worktree (and submodule) `.git` is a FILE, not a dir.
+    That case used to be silently dead; the health manifest must name it."""
+    from tests._capture import runtime_triggers
+
+    repo = tmp_git_repo_with_capture
+    wt = repo.parent / "linked-worktree"
+    subprocess.run(["git", "worktree", "add", "-q", str(wt), "-b", "wt"],
+                   cwd=repo, check=True)
+
+    assert (wt / ".git").is_file()
+    assert runtime_triggers.installation_state(repo)["git_dir_is_file"] is False
+    assert runtime_triggers.installation_state(wt)["git_dir_is_file"] is True
+
+
+def test_capture_health_reports_hooks_path_state(tmp_git_repo_with_capture):
+    """hooks_path_set flips once core.hooksPath is configured."""
+    from tests._capture import runtime_triggers
+
+    repo = tmp_git_repo_with_capture
+    assert runtime_triggers.installation_state(repo)["hooks_path_set"] is False
+    subprocess.run(["git", "config", "--local", "core.hooksPath", ".githooks"],
+                   cwd=repo, check=True)
+    assert runtime_triggers.installation_state(repo)["hooks_path_set"] is True

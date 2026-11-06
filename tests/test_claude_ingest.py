@@ -3,12 +3,15 @@
 Mirrors test_codex_ingest in style. The module under test scans
 ``$CLAUDE_CONFIG_DIR/projects/<slug>/*.jsonl``, filters by the cwd in the
 first cwd-bearing event, and copies matches into
-``<repo>/.ai-traces/claude/raw/sessions/``. Dedup is size-aware (re-copy
-when source has grown).
+``<repo>/.ai-traces/claude/raw/sessions/``. Dedup is mtime+size-aware
+(re-copy when source has grown OR was rewritten in place at an unchanged
+size), and a course-start floor (assignment-config.json's course_start)
+can exclude sessions with an older file mtime.
 """
 import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -74,7 +77,7 @@ def test_ingest_copies_sessions_whose_cwd_matches_repo(tmp_path, fake_claude_hom
     _write_session(fake_claude_home, sid="bbb", cwd=str(other),
                    mtime=time.time() - 30)
 
-    copied = claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    copied = claude_ingest.ingest_transcripts(repo)
 
     assert len(copied) == 1
     assert copied[0].name == matching.name
@@ -94,9 +97,24 @@ def test_ingest_captures_sessions_created_before_session_start(tmp_path, fake_cl
     _write_session(fake_claude_home, sid="earlier", cwd=str(repo),
                    mtime=started - 3600)
 
-    copied = claude_ingest.ingest_transcripts(repo, started)
+    copied = claude_ingest.ingest_transcripts(repo)
 
     assert len(copied) == 1
+
+
+def test_ingest_copies_session_with_cwd_in_subdir_of_repo(tmp_path, fake_claude_home):
+    """A session whose cwd is a subdirectory of the repo (e.g. the student
+    ran Claude Code from ``repo/src``) must still be captured."""
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+
+    matching = _write_session(fake_claude_home, sid="subdir", cwd=str(repo / "src"),
+                              mtime=time.time() - 30)
+
+    copied = claude_ingest.ingest_transcripts(repo)
+
+    assert len(copied) == 1
+    assert copied[0].name == matching.name
 
 
 def test_ingest_ignores_sessions_with_different_cwd(tmp_path, fake_claude_home):
@@ -107,7 +125,7 @@ def test_ingest_ignores_sessions_with_different_cwd(tmp_path, fake_claude_home):
     _write_session(fake_claude_home, sid="other", cwd=str(other),
                    mtime=time.time() - 30)
 
-    copied = claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    copied = claude_ingest.ingest_transcripts(repo)
 
     assert copied == []
     assert not (repo / ".ai-traces").exists()
@@ -119,8 +137,8 @@ def test_ingest_is_idempotent_when_source_unchanged(tmp_path, fake_claude_home):
     _write_session(fake_claude_home, sid="dup", cwd=str(repo),
                    mtime=time.time() - 30)
 
-    first = claude_ingest.ingest_transcripts(repo, time.time() - 60)
-    second = claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    first = claude_ingest.ingest_transcripts(repo)
+    second = claude_ingest.ingest_transcripts(repo)
 
     assert len(first) == 1
     assert second == []
@@ -135,7 +153,7 @@ def test_ingest_recopies_when_source_grew(tmp_path, fake_claude_home):
     repo.mkdir()
     src = _write_session(fake_claude_home, sid="growing", cwd=str(repo),
                          mtime=time.time() - 30)
-    first = claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    first = claude_ingest.ingest_transcripts(repo)
     assert len(first) == 1
     dest = repo / ".ai-traces" / "claude" / "raw" / "sessions" / src.name
     initial_size = dest.stat().st_size
@@ -154,7 +172,7 @@ def test_ingest_recopies_when_source_grew(tmp_path, fake_claude_home):
     grown_size = src.stat().st_size
     assert grown_size > initial_size
 
-    second = claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    second = claude_ingest.ingest_transcripts(repo)
     assert len(second) == 1, (
         "Source session grew between ingests — destination must be refreshed."
     )
@@ -175,11 +193,81 @@ def test_ingest_copies_sibling_spillover_dir(tmp_path, fake_claude_home):
     big_output = spillover / "tool-results" / "abc.txt"
     big_output.write_text("a" * 1000, encoding="utf-8")
 
-    claude_ingest.ingest_transcripts(repo, time.time() - 60)
+    claude_ingest.ingest_transcripts(repo)
 
     dest_root = repo / ".ai-traces" / "claude" / "raw" / "sessions"
     assert (dest_root / "spill" / "tool-results" / "abc.txt").exists()
     assert (dest_root / "spill" / "tool-results" / "abc.txt").read_text(encoding="utf-8") == "a" * 1000
+
+
+def test_ingest_dedup_recopies_when_mtime_newer_despite_equal_size(tmp_path, fake_claude_home):
+    """Equal-size rewrite must be re-copied — size-only dedup would freeze
+    stale evidence in place (mirrors the codex_ingest test)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    src = _write_session(fake_claude_home, sid="rewrite", cwd=str(repo),
+                         mtime=time.time() - 120)
+    first = claude_ingest.ingest_transcripts(repo)
+    assert len(first) == 1
+    dest = repo / ".ai-traces" / "claude" / "raw" / "sessions" / src.name
+    original_bytes = dest.read_bytes()
+
+    replacement = original_bytes[:-1] + b"\n"
+    assert len(replacement) == len(original_bytes)
+    src.write_bytes(replacement)
+    newer_mtime = time.time() + 5
+    os.utime(src, (newer_mtime, newer_mtime))
+
+    second = claude_ingest.ingest_transcripts(repo)
+
+    assert len(second) == 1, (
+        "equal-size rewrite must be re-copied, not skipped by size-only dedup"
+    )
+    assert dest.read_bytes() == replacement
+
+
+def test_ingest_floor_skips_session_older_than_course_start(tmp_path, fake_claude_home):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "assignment-config.json").write_text(
+        json.dumps({"course_start": "2026-01-12"}), encoding="utf-8"
+    )
+    pre_course = datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp()
+    _write_session(fake_claude_home, sid="stale-semester", cwd=str(repo),
+                   mtime=pre_course)
+
+    copied = claude_ingest.ingest_transcripts(repo)
+
+    assert copied == []
+
+
+def test_ingest_floor_captures_session_at_or_after_course_start(tmp_path, fake_claude_home):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "assignment-config.json").write_text(
+        json.dumps({"course_start": "2026-01-12"}), encoding="utf-8"
+    )
+    post_course = datetime(2026, 1, 13, tzinfo=timezone.utc).timestamp()
+    matching = _write_session(fake_claude_home, sid="this-semester", cwd=str(repo),
+                              mtime=post_course)
+
+    copied = claude_ingest.ingest_transcripts(repo)
+
+    assert len(copied) == 1
+    assert copied[0].name == matching.name
+
+
+def test_ingest_no_floor_when_assignment_config_absent(tmp_path, fake_claude_home):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    long_ago = datetime(2000, 1, 1, tzinfo=timezone.utc).timestamp()
+    matching = _write_session(fake_claude_home, sid="ancient", cwd=str(repo),
+                              mtime=long_ago)
+
+    copied = claude_ingest.ingest_transcripts(repo)
+
+    assert len(copied) == 1
+    assert copied[0].name == matching.name
 
 
 def test_ingest_returns_empty_when_claude_home_missing(tmp_path, monkeypatch):
@@ -187,7 +275,7 @@ def test_ingest_returns_empty_when_claude_home_missing(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    assert claude_ingest.ingest_transcripts(repo, time.time()) == []
+    assert claude_ingest.ingest_transcripts(repo) == []
     assert not (repo / ".ai-traces").exists()
 
 
@@ -202,5 +290,56 @@ def test_ingest_swallows_errors_on_malformed_jsonl(tmp_path, fake_claude_home):
 
     # Should not raise, should not match (no cwd extractable), should
     # leave dest dir absent.
-    result = claude_ingest.ingest_transcripts(repo, time.time())
+    result = claude_ingest.ingest_transcripts(repo)
     assert result == []
+
+
+def test_ingest_reports_matched_but_skipped_sessions(tmp_path, fake_claude_home):
+    """A session that cleared cwd matching AND the course floor but is
+    already up to date is 'matched, not copied'. Discarding it made the
+    capture_counts trailer vanish on every steady-state run, which is
+    indistinguishable from ingest being broken (bead 8g5.7)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _write_session(fake_claude_home, sid="steady", cwd=str(repo),
+                   mtime=time.time() - 60)
+
+    skipped: list = []
+    first = claude_ingest.ingest_transcripts(repo, skipped=skipped)
+    assert len(first) == 1
+    assert skipped == [], "first ingest copies; nothing is skipped yet"
+
+    skipped_second: list = []
+    second = claude_ingest.ingest_transcripts(repo, skipped=skipped_second)
+    assert second == [], "unchanged source must not be re-copied"
+    assert len(skipped_second) == 1, (
+        "an up-to-date match must be reported as skipped, not dropped"
+    )
+
+
+def test_skipped_excludes_non_matching_and_pre_course_sessions(
+        tmp_path, fake_claude_home):
+    """Counts stay matched-only: a foreign-cwd session and a pre-floor
+    session must appear in NEITHER copied nor skipped, or the trailer
+    would leak the student's AI use outside this course."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    other = tmp_path / "somewhere-else"
+    other.mkdir()
+    (repo / "assignment-config.json").write_text(
+        json.dumps({"course_start": datetime.now(timezone.utc)
+                    .replace(microsecond=0).isoformat()}),
+        encoding="utf-8",
+    )
+    _write_session(fake_claude_home, sid="foreign", cwd=str(other),
+                   mtime=time.time() + 5)
+    _write_session(fake_claude_home, sid="ancient", cwd=str(repo),
+                   mtime=time.time() - 86400 * 30)
+
+    skipped: list = []
+    copied = claude_ingest.ingest_transcripts(repo, skipped=skipped)
+
+    assert copied == []
+    assert skipped == [], (
+        "non-matching and pre-course sessions must not be counted as matched"
+    )

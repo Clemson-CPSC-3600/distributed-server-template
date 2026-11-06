@@ -15,6 +15,7 @@ Filter list (events dropped from the normalized stream — pure housekeeping):
 
 Kept events (mapped to common schema):
     - user (string content)         -> user_prompt OR slash_command
+                                       (system_message if nobody typed it)
     - user (array w/ tool_result)   -> tool_result
     - assistant (text/thinking)     -> assistant_message + reasoning
     - assistant (tool_use)          -> tool_start
@@ -27,7 +28,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tests._capture import ai_traces
+from tests._capture import ai_traces, redaction
 
 
 ADAPTER = "claude"
@@ -127,6 +128,10 @@ def normalize_session(repo: Path, session: Path) -> List[dict]:
                 continue
             content = row.get("content")
             text = content if isinstance(content, str) else None
+            extras = {"raw_type": typ, "subtype": subtype, "raw_payload": _safe_payload(row)}
+            if text is not None:  # never a command's output (see redaction)
+                extras[redaction.CLAUDE_TEXT_KEPT_KEY] = (
+                    redaction.claude_system_text_is_kept(subtype, text))
             events.append(_event(
                 session_id=session_id,
                 turn_id=turn_id,
@@ -135,11 +140,14 @@ def normalize_session(repo: Path, session: Path) -> List[dict]:
                 evidence_refs=[evidence_ref],
                 ts=ts,
                 text=text,
-                extras={"raw_type": typ, "subtype": subtype, "raw_payload": _safe_payload(row)},
+                extras=extras,
             ))
             continue
 
         if typ == "attachment":
+            extras = {"raw_type": typ, "attachment": row.get("attachment")}
+            if row.get(redaction.CLAUDE_SIDECHAIN_KEY) is True:
+                extras[redaction.CLAUDE_SIDECHAIN_KEY] = True  # nothing typed
             events.append(_event(
                 session_id=session_id,
                 turn_id=turn_id,
@@ -147,7 +155,7 @@ def normalize_session(repo: Path, session: Path) -> List[dict]:
                 cwd=cwd,
                 evidence_refs=[evidence_ref],
                 ts=ts,
-                extras={"raw_type": typ, "attachment": row.get("attachment")},
+                extras=extras,
             ))
             continue
 
@@ -189,12 +197,25 @@ def _normalize_user_events(
     extras_base: Dict[str, Any] = {"raw_type": "user"}
     if "promptId" in row:
         extras_base["promptId"] = row.get("promptId")
+    # `isMeta` rows are text Claude Code adds (skill bodies, command
+    # caveats, reminders), not a prompt; the redaction pass withholds them.
+    is_meta = row.get("isMeta") is True
+    if is_meta:
+        extras_base["isMeta"] = True
 
     if isinstance(content, str):
         slash = _SLASH_CMD_RE.search(content)
         extras = dict(extras_base)
         event_type = "user_prompt"
-        if slash:
+        # So are task notifications, command output and other agents'
+        # messages (see redaction's CLAUDE CODE TEXT NOBODY TYPED). The
+        # decision is recorded for the redaction pass (CLAUDE_TEXT_KEPT_KEY).
+        typed = (redaction.claude_row_is_typed(row)
+                 and redaction.claude_text_is_typed(content))
+        extras[redaction.CLAUDE_TEXT_KEPT_KEY] = typed
+        if not typed:
+            event_type = "system_message"
+        elif slash:
             event_type = "slash_command"
             extras["slash_command"] = slash.group(1).strip()
         return True, [_event(

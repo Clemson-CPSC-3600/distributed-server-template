@@ -26,8 +26,12 @@ jobs:
       - name: Verify capture-layer files unchanged
         id: integrity
         continue-on-error: true
+        # --mode student: this workflow only ever runs in student repos, so
+        # always hash the shipped paths (.claude/, not .claude-student/).
+        # Detecting the mode from the repo would trust files the student
+        # can edit.
         run: |
-          if python tools/verify_integrity.py > integrity.out 2>&1; then
+          if python tools/verify_integrity.py --mode student > integrity.out 2>&1; then
             echo "status=clean" >> "$GITHUB_OUTPUT"
             cat integrity.out
           else

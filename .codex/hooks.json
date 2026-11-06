@@ -1,0 +1,95 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" session_start >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') session_start | Out-Null } catch { }; exit 0\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" user_prompt_submit >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') user_prompt_submit | Out-Null } catch { }; exit 0\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" pre_tool_use >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') pre_tool_use | Out-Null } catch { }; exit 0\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" post_tool_use >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') post_tool_use | Out-Null } catch { }; exit 0\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" pre_compact >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') pre_compact | Out-Null } catch { }; exit 0\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" stop >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') stop | Out-Null } catch { }; exit 0\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.codex/hooks/_run.py\" session_end >/dev/null 2>&1; fi; exit 0'",
+            "commandWindows": "powershell -NoProfile -Command \"try { $r = (git rev-parse --show-toplevel) } catch { $r = $null }; if (-not $r) { $r = (Get-Location).Path }; try { python (Join-Path $r '.codex/hooks/_run.py') session_end | Out-Null } catch { }; exit 0\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Cross-platform Git credentials helper for GitHub Classroom.
+Cross-platform Git credentials helper.
 
 Purpose:
     Diagnose and (with your confirmation) fix the three most common reasons
-    `git push` fails on day 1 of a GitHub Classroom assignment:
+    `git push` fails on day 1 of an assignment:
       1. No `origin` remote configured.
       2. No credential helper set, so Git keeps asking for a password.
       3. Credentials rejected (expired token, 2FA/SSO, wrong URL).
@@ -191,7 +191,7 @@ def _fix_remote() -> None:
         return
 
     _warn("You don't have an `origin` remote configured.")
-    print("  GitHub Classroom should have given you a repo URL.")
+    print("  This is the repo you created from the assignment template.")
     pasted = _prompt(
         "Paste your GitHub repo URL (HTTPS form, e.g. "
         "https://github.com/org/repo.git) or press Enter to skip: "
