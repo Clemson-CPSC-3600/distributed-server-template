@@ -46,13 +46,15 @@ class VSCodeChatAdapter:
             evidence_root = ai_traces.adapter_dir(repo, self.name)
             if not self.is_present() and not evidence_root.exists():
                 return IngestResult(adapter_name=self.name)
-            copied = vscode_chat_ingest.ingest_transcripts(repo, since or 0.0)
+            skipped: list = []
+            copied = vscode_chat_ingest.ingest_transcripts(repo, skipped=skipped)
             if not copied and not evidence_root.exists():
                 return IngestResult(adapter_name=self.name)
             ai_traces.ensure_attestation(repo)
             return IngestResult(
                 adapter_name=self.name,
                 rollouts_copied=list(copied),
+                rollouts_skipped=list(skipped),
                 # No normalizer — see module docstring.
                 summaries_built=[],
                 source_hashes=ai_traces.collect_hashes(repo),

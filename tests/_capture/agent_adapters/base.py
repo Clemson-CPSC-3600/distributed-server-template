@@ -32,10 +32,27 @@ class IngestResult:
     adapter_name: str
     rollouts_copied: List[Path] = field(default_factory=list)
     rollouts_skipped: List[Path] = field(default_factory=list)
+    # Sessions seen running from a STRICT ANCESTOR of the repo (student
+    # opened a folder above the assignment). Never copied -- diagnostic
+    # only. See codex_ingest._cwd_is_repo_ancestor.
+    rollouts_ancestor_cwd: List[Path] = field(default_factory=list)
     summaries_built: List[Path] = field(default_factory=list)
     source_hashes: List[Dict[str, str]] = field(default_factory=list)
     flags: List[Path] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_exception(
+        cls, adapter_name: str, exc: BaseException,
+    ) -> "IngestResult":
+        """An ingest pass that blew up, expressed as a result rather than a
+        silent drop. The orchestrator uses this so a crashed adapter becomes
+        a visible error entry in the capture-health manifest instead of an
+        indistinguishable "no traces" outcome."""
+        return cls(
+            adapter_name=adapter_name,
+            errors=[f"{type(exc).__name__}: {exc}"],
+        )
 
     @classmethod
     def merge(cls, results: List["IngestResult"]) -> "IngestResult":

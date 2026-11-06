@@ -73,7 +73,9 @@ def test_adapter_ingest_copies_raw_only(fake_vscode_home, tmp_path):
     assert len(result.rollouts_copied) == 1
     # Raw-only: no normalized output and no contribution to interaction-stream.
     assert result.summaries_built == []
-    assert (repo / ".ai-traces" / "vscode_chat" / "raw" / "sessions" / "alpha.jsonl").exists()
+    assert (
+        repo / ".ai-traces" / "vscode_chat" / "raw" / "sessions" / "override" / "ws" / "alpha.jsonl"
+    ).exists()
     assert not (repo / ".ai-traces" / "vscode_chat" / "normalized").exists()
 
 

@@ -78,23 +78,12 @@ def _git_remote_url(repo: Path) -> Optional[str]:
     return url or None
 
 
-def _git_credential_helper(repo: Path, remote_url: str) -> str:
-    """Return the effective credential helper for one HTTPS remote URL."""
-
+def _git_credential_helper(repo: Path) -> str:
     try:
-        result = _run_git(
-            ["config", "--get-urlmatch", "credential.helper", remote_url],
-            cwd=repo,
-        )
+        result = _run_git(["config", "--get", "credential.helper"], cwd=repo)
     except (subprocess.SubprocessError, OSError):
         return ""
     return result.stdout.strip() if result.returncode == 0 else ""
-
-
-def _remote_requires_credential_helper(remote_url: str) -> bool:
-    """Return whether ``remote_url`` relies on Git's credential helpers."""
-
-    return remote_url.lower().startswith(("http://", "https://"))
 
 
 def _running_in_ci() -> bool:
@@ -154,22 +143,17 @@ def check_environment(repo: Path) -> List[str]:
 
     # Git checks are only relevant when capture is enabled (student mode).
     # Instructor copies of the template don't push, so don't gate them on
-    # credentials being configured. CI runs (GitHub Classroom autograding)
-    # also skip the credential-helper check because the checkout action
+    # credentials being configured. CI runs also skip the
+    # credential-helper check because the checkout action
     # configures token auth via http.extraheader, not credential.helper.
     if (repo / ".git").exists() and _capture_enabled(repo):
-        remote_url = _git_remote_url(repo)
-        if remote_url is None:
+        if _git_remote_url(repo) is None:
             failures.append(
                 "No git remote `origin` is configured. Test snapshots can't "
                 "be uploaded.\n"
                 "    Run:  python tools/setup_credentials.py"
             )
-        elif (
-            _remote_requires_credential_helper(remote_url)
-            and not _git_credential_helper(repo, remote_url)
-            and not _running_in_ci()
-        ):
+        if not _git_credential_helper(repo) and not _running_in_ci():
             failures.append(
                 "Git credential helper is not configured. Pushes will fail "
                 "or hang.\n"
@@ -177,6 +161,125 @@ def check_environment(repo: Path) -> List[str]:
             )
 
     return failures
+
+
+def _codex_home() -> Path:
+    """Honor $CODEX_HOME; fall back to ~/.codex."""
+    home = os.environ.get("CODEX_HOME")
+    return Path(home) if home else Path.home() / ".codex"
+
+
+def _codex_hooks_untrusted(repo: Path) -> bool:
+    """True if this repo ships Codex hooks that are not trusted here.
+
+    Two independent signals, either of which is enough to warn:
+
+    1. No ``[hooks.state]`` entry naming this repo's ``hooks.json`` in
+       ``$CODEX_HOME/config.toml``. Presence-only: we do NOT validate
+       ``trusted_hash``, because what bytes it covers is not yet
+       reverse-engineered, so a stale entry left by an edited hooks.json
+       can read as trusted.
+    2. The manifest conjunction -- Codex evidence captured but no hook
+       heartbeat (see capture_health.hooks_look_unauthorized). This one
+       catches the case signal 1 misses: trust was granted once, the
+       instructor then edited hooks.json, and the stale entry still reads
+       as trusted while the hooks no longer run.
+
+    Deliberately conservative: this only ever warns, never fails.
+    """
+    hooks_json = repo / ".codex" / "hooks.json"
+    if not hooks_json.is_file():
+        return False  # nothing to trust yet (hooks v2 has not shipped)
+
+    manifest = repo / ".ai-traces" / "capture-health.json"
+    try:
+        health = json.loads(manifest.read_text(encoding="utf-8"))
+        entry = (health.get("adapters") or {}).get("codex") or {}
+        if entry.get("evidence") and not entry.get("heartbeat"):
+            return True
+    except (OSError, ValueError):
+        pass
+
+    config = _codex_home() / "config.toml"
+    try:
+        text = config.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False  # no Codex config at all -- student may not use Codex
+    return f'{hooks_json}:' not in text
+
+
+def _last_workspace_root_mismatch(repo: Path) -> bool:
+    """True if the last capture run saw a session running above the repo."""
+    manifest = repo / ".ai-traces" / "capture-health.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return bool(data.get("workspace_root_mismatch"))
+
+
+def check_warnings(repo: Path) -> List[str]:
+    """Non-blocking capture-configuration advisories.
+
+    These NEVER gate the test run. A hard gate on capture configuration
+    would block coursework for instructor observability, lock out students
+    who never use Codex, and -- because hook trust is sha256-keyed per
+    machine -- turn any mid-semester hooks.json edit into a class-wide
+    lockout. `--skip-preflight` also makes such a gate trivially
+    bypassable, so it would only ever slow down the honest.
+    """
+    warnings: List[str] = []
+    if not (repo / ".git").exists():
+        return warnings
+    from tools.verify_integrity import configuration_errors, distribution_mode
+    problems = configuration_errors(repo, distribution_mode(repo))
+    if problems:
+        warnings.append(
+            "Activity logging is not configured correctly. Your tests can still run, "
+            "but the activity record may be incomplete. Ask your instructor to restore "
+            "the assignment's capture configuration; do not recreate it by guessing."
+        )
+        return warnings
+    if not _capture_enabled(repo):
+        return warnings
+
+    if _last_workspace_root_mismatch(repo):
+        warnings.append(
+            "Your editor looks like it is open on a FOLDER ABOVE this "
+            "assignment.\n"
+            "    Your work still runs fine, but AI-assistance logging for "
+            "this\n"
+            "    course cannot see it, so your effort may not be recorded.\n"
+            "    Fix: open THIS folder as the workspace root\n"
+            f"        {repo.name}/  (the folder containing run_tests.py)\n"
+            "    rather than a parent folder that merely contains it."
+        )
+
+    if _codex_hooks_untrusted(repo):
+        warnings.append(
+            "This project ships Codex hooks, but they are not trusted on "
+            "this machine.\n"
+            "    Your work still runs fine, but AI-assistance logging may "
+            "be incomplete.\n"
+            "    Fix: open Codex in this folder and run `/hooks`, then "
+            "approve\n"
+            "    the listed hooks. You may need to re-approve after the\n"
+            "    instructor updates them."
+        )
+    return warnings
+
+
+def report_warnings(warnings: List[str]) -> None:
+    """Print advisories prominently WITHOUT blocking the run."""
+    if not warnings:
+        return
+    print()
+    print(f"{YELLOW}{BOLD}Heads up -- AI-logging setup looks incomplete.{RESET}")
+    print(f"{YELLOW}Your tests will still run.{RESET}")
+    print()
+    for index, msg in enumerate(warnings, 1):
+        print(f"{BOLD}{index}.{RESET} {msg}")
+        print()
 
 
 def report(repo: Path, failures: List[str]) -> None:

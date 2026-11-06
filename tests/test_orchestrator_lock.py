@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from tests._capture import orchestrator
+from tests._capture import orchestrator, platform_compat
 
 
 def test_lock_acquires_when_uncontended(tmp_path):
@@ -78,6 +78,41 @@ def test_lock_returns_false_under_contention(tmp_path):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+
+def test_lock_is_freed_when_the_holder_is_killed(tmp_path):
+    """A snapshot child killed by a hook's 25s timeout must not leave the
+    lock held forever. The lock is an OS file lock tied to the holder's
+    open file, so the kernel releases it when the process dies -- even when
+    the holder had started a child process of its own (as the orchestrator
+    does with git), because children do not inherit the lock's descriptor.
+    """
+    (tmp_path / ".git").mkdir()
+    script = _holder_script(str(tmp_path), 120).replace(
+        'print("LOCKED" if locked else "NOLOCK", flush=True)',
+        'import subprocess; child = subprocess.Popen([sys.executable, "-c", '
+        '"import time; time.sleep(60)"]); '
+        'print("LOCKED" if locked else "NOLOCK", child.pid, flush=True)')
+    proc = subprocess.Popen(
+        [sys.executable, "-c", script],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    child_pid = None
+    try:
+        status, child_pid = proc.stdout.readline().split()
+        assert status == "LOCKED"
+        proc.kill()  # SIGKILL on POSIX, TerminateProcess on Windows
+        proc.wait(timeout=10)
+        start = time.monotonic()
+        with orchestrator._orchestrator_lock(tmp_path) as locked:
+            assert locked is True
+        assert time.monotonic() - start < 5.0
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        if child_pid is not None:  # the orphaned grandchild we started
+            platform_compat.terminate_process(int(child_pid), timeout=3.0)
 
 
 def test_lock_acquires_after_holder_releases(tmp_path):

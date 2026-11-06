@@ -36,6 +36,19 @@ except ImportError:
     _preflight = None
 
 
+class GradingHarnessError(RuntimeError):
+    """The harness could not determine test outcomes, so no score is valid.
+
+    Raised instead of returning an all-zero result. A submission that
+    genuinely fails every test and a harness that cannot read any outcome
+    both produce "0 tests passed", but they mean opposite things, and a
+    silent 0 is indistinguishable from a real failing grade. Callers must
+    surface this rather than score it: run() exits 3 with the message, and
+    gradescope_grader.py turns it into error_results() so the student sees
+    a reason instead of 0/3.
+    """
+
+
 def assert_in_venv() -> None:
     """Refuse to run unless invoked from the project's local venv.
 
@@ -389,7 +402,7 @@ class BundleTestRunner:
             ]
         return selected or None
 
-    def build_pytest_command(self, test_nodeids):
+    def build_pytest_command(self, test_nodeids, force_verbose=False):
         """Build the pytest command for the current run.
 
         test_nodeids must be a non-empty list -- the runner now always
@@ -400,6 +413,12 @@ class BundleTestRunner:
         Quiet by default: pytest emits dots/Fs as tests run, and the JSON
         report carries the failure detail we render afterwards. -v opts back
         into the per-test PASSED/FAILED stream and inline tracebacks.
+
+        force_verbose is for callers that must scrape stdout because the
+        JSON report is unavailable. Under -q pytest prints dots, so the
+        scraper in parse_pytest_verbose_output matches nothing at all --
+        the per-test "PASSED"/"FAILED" lines it looks for only exist
+        under -v.
         """
         if not test_nodeids:
             return None
@@ -407,10 +426,10 @@ class BundleTestRunner:
         cmd = [sys.executable, "-m", "pytest"]
         cmd.extend(test_nodeids)
         cmd.extend(["--color=yes", "--strict-markers"])
-        if self.verbose:
+        if self.verbose or force_verbose:
             cmd.extend(["-v", "--tb=short"])
         else:
-            cmd.extend(["-q", "--tb=no", "--no-header", "--no-summary"])
+            cmd.extend(["-q", "--tb=no", "--no-header"])
         cmd.extend(self.pytest_args)
         return cmd
 
@@ -502,7 +521,6 @@ class BundleTestRunner:
                         "file": filename,
                         "class": test_class,
                         "name": test_name,
-                        "nodeid": nodeid,
                         "passed": outcome == "passed",
                         "points": points,
                         "longrepr": longrepr,
@@ -515,11 +533,17 @@ class BundleTestRunner:
                 if self.verbose:
                     print(f"Note: Could not parse JSON results: {exc}")
                     print("Falling back to basic test output parsing")
-                bundles_data = self.parse_pytest_verbose_output(result.stdout, test_markers)
+                bundles_data = self._parse_stdout_fallback(
+                    result, test_markers, selected_tests,
+                    reason=f"the JSON report could not be parsed ({exc})",
+                )
             finally:
                 json_path.unlink(missing_ok=True)
         else:
-            bundles_data = self.parse_pytest_verbose_output(result.stdout, test_markers)
+            bundles_data = self._parse_stdout_fallback(
+                result, test_markers, selected_tests,
+                reason=f"pytest did not write {json_path.name}",
+            )
 
         return result.returncode, bundles_data
 
@@ -534,13 +558,54 @@ class BundleTestRunner:
         except ImportError:
             pass
 
-        cmd = self.build_pytest_command(selected_tests)
+        # Degraded path: without pytest-json-report we have to scrape stdout,
+        # which requires -v. Forcing it here is what keeps this path scoring
+        # correctly rather than silently reporting every bundle as 0.
+        cmd = self.build_pytest_command(selected_tests, force_verbose=True)
         if cmd is None:
             return 0, {1: [], 2: [], 3: []}
 
         result = self.run_subprocess(cmd)
-        bundles_data = self.parse_pytest_verbose_output(result.stdout, test_markers)
+        bundles_data = self._parse_stdout_fallback(
+            result, test_markers, selected_tests,
+            reason="pytest-json-report is not installed",
+        )
         return result.returncode, bundles_data
+
+    def _parse_stdout_fallback(self, result, test_markers, selected_tests, reason):
+        """Scrape outcomes from pytest stdout, refusing to return a silent zero.
+
+        Every caller of this method is already on a degraded path -- the JSON
+        report, which is the authority, was unavailable. If the scrape then
+        yields no outcomes at all while pytest reports a *normal* session over
+        a non-empty selection, the parser is at fault, not the submission, and
+        returning empty bundles would hand back a 0 that looks exactly like a
+        legitimately failing student.
+
+        The exit code is what separates the two cases. pytest exits 0 when
+        every selected test passed and 1 when some failed -- both mean tests
+        actually ran, so parsing nothing is impossible unless the scraper
+        broke. Every other exit code (2 interrupted/collection error, 3
+        internal error, 4 usage error, 5 nothing collected) means the session
+        did not complete normally, which is usually the student's own code
+        failing to import; those must still score 0 rather than raise.
+        """
+        bundles = self.parse_pytest_verbose_output(result.stdout, test_markers)
+        parsed = sum(len(tests) for tests in bundles.values())
+
+        if parsed == 0 and selected_tests and result.returncode in (0, 1):
+            raise GradingHarnessError(
+                f"Could not read any test outcome from pytest's output, but "
+                f"pytest ran {len(selected_tests)} selected test(s) and exited "
+                f"{result.returncode} (a normal session). Refusing to report a "
+                f"score, because 0/3 here would be indistinguishable from a "
+                f"submission that genuinely failed everything.\n"
+                f"  Degraded because: {reason}.\n"
+                f"  Fix: pip install -r requirements.txt  (the pinned "
+                f"pytest-json-report is what this runner grades from)."
+            )
+
+        return bundles
 
     def parse_pytest_verbose_output(self, output, test_markers):
         """Parse verbose pytest output to extract test results and markers."""
@@ -575,11 +640,6 @@ class BundleTestRunner:
                 "file": filename,
                 "class": test_class,
                 "name": test_name,
-                "nodeid": (
-                    f"tests/{filename}::"
-                    + (f"{test_class}::" if test_class else "")
-                    + test_name
-                ),
                 "passed": status == "PASSED",
                 "points": metadata["points"],
                 "longrepr": "",
@@ -697,18 +757,7 @@ class BundleTestRunner:
             gist = self._summarize_longrepr(test.get("longrepr", ""))
             if gist:
                 print(f"{indent}       {gist}")
-            nodeid = test.get("nodeid") or f"tests/{test['file']}::{qualname}"
-            path, separator, suffix = nodeid.partition("::")
-            if Path(path).is_absolute():
-                try:
-                    relative = Path(path).resolve().relative_to(self.root_dir.resolve())
-                    nodeid = relative.as_posix() + (separator + suffix if separator else "")
-                except ValueError:
-                    pass
-            safe_nodeid = nodeid.replace('"', '\\"')
-            print(
-                f'{indent}       {BLUE}-> python -m pytest "{safe_nodeid}" -v{RESET}'
-            )
+            print(f"{indent}       {BLUE}-> pytest {test['file']}::{qualname} -v{RESET}")
 
     def _render_focus_bundle(self, groups, show_all):
         """Render the body of the focus bundle: grouped, with sub-focus.
@@ -752,9 +801,8 @@ class BundleTestRunner:
                     f"         ({remaining} failing - rerun with --all to see)"
                 )
 
-    # Path that downstream graders (github_grader.py in a specialized
-    # assignment template) read to learn the latest bundle outcome without
-    # re-running pytest. Gitignored under .test-run-state/.
+    # Path that downstream graders read to learn the latest bundle outcome
+    # without re-running pytest. Gitignored under .test-run-state/.
     STATUS_CACHE_RELATIVE = Path(".test-run-state") / "last_bundle_status.json"
 
     def compute_bundle_status(self, bundles_data):
@@ -816,10 +864,6 @@ class BundleTestRunner:
         -v: keeps full pytest verbose output as well (handled in
         build_pytest_command).
         """
-        if self.bundle is not None:
-            self._print_focused_bundle_results(bundles_data)
-            return
-
         status = self.compute_bundle_status(bundles_data)
         bundle_status = status["bundles"]
         grade = status["grade"]
@@ -923,33 +967,6 @@ class BundleTestRunner:
         else:
             print(f"{GREEN}-> Congratulations! All bundles complete!{RESET}")
 
-    def _print_focused_bundle_results(self, bundles_data):
-        """Report one selected bundle without claiming or caching a full grade."""
-
-        tests = bundles_data[self.bundle]
-        total = len(tests)
-        passed = sum(1 for test in tests if test["passed"])
-        complete = total > 0 and passed == total
-        icon = f"{GREEN}[PASS]{RESET}" if complete else f"{RED}[FAIL]{RESET}"
-
-        print("\n" + "=" * 80)
-        print(f"{BOLD}FOCUSED BUNDLE {self.bundle} RESULTS{RESET}")
-        print("=" * 80)
-        print(f"{icon} Bundle {self.bundle}: {passed}/{total} tests passed")
-
-        if not complete:
-            groups = self._build_component_groups(tests)
-            if len(groups) <= 1:
-                if groups:
-                    self._render_group_failures(groups[0], indent="  ")
-            else:
-                self._render_focus_bundle(groups, show_all=self.show_all)
-
-        print(
-            "\nThis was a focused diagnostic run. It did not calculate an "
-            "overall grade or overwrite the last full-suite grade status."
-        )
-
     def _install_sigterm_handler(self):
         """On Unix, ensure SIGTERM kills the pytest subprocess before we exit.
 
@@ -1028,6 +1045,15 @@ class BundleTestRunner:
             print("\n\nInterrupted by user")
             exit_code = 2
             return exit_code
+        except GradingHarnessError as exc:
+            # Deliberately loud and distinct from a failing grade: no score
+            # was produced at all, so nobody should read this as "0/3".
+            print("\n" + "=" * 80)
+            print(f"{RED}{BOLD}GRADING HARNESS ERROR - no score was produced{RESET}")
+            print("=" * 80)
+            print(exc)
+            exit_code = 3
+            return exit_code
         except Exception as exc:
             print(f"\nError: {exc}")
             if self.verbose:
@@ -1045,6 +1071,22 @@ class BundleTestRunner:
                 # tracked tree happens to be unchanged.
                 _capture.session_finish(self.root_dir, self._capture_ctx,
                                         status=status, force=True)
+                try:
+                    from tests._capture.doctor import build_report
+                    capture_status = build_report(self.root_dir)
+                    upload = capture_status["upload"]["status"]
+                    if "snapshot_failed" in capture_status["errors"] or "redaction_failed" in capture_status["errors"]:
+                        print("Activity capture needs attention; your test result is unchanged. "
+                              "Run python -m tests._capture doctor --json for details.")
+                    elif upload == "confirmed":
+                        print("Last saved activity record: upload acknowledged.")
+                    elif upload == "pending":
+                        print("Activity record saved locally; upload is running in the background.")
+                    else:
+                        print("Activity record is saved locally, but its upload is not confirmed. "
+                              "Run python -m tests._capture doctor --json for details.")
+                except Exception:
+                    print("Activity-upload status is unknown; your test result is unchanged.")
 
 
 def main():
@@ -1125,6 +1167,12 @@ Note: If the 'solution' directory contains Python files, it will be tested autom
         if failures:
             _preflight.report(repo, failures)
             return 4
+        # Advisories are printed but never gate the run -- see
+        # preflight.check_warnings for why capture config is not a hard gate.
+        try:
+            _preflight.report_warnings(_preflight.check_warnings(repo))
+        except Exception:
+            pass  # advisory only; must never break the test run
 
     runner = BundleTestRunner(
         verbose=args.verbose,

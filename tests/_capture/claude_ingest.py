@@ -9,12 +9,15 @@ Selection criteria:
   * the first cwd-bearing event in the session JSONL resolves to the same
     path as ``repo``
 
-Idempotency is size-aware (see codex_ingest module docstring for the same
-rationale). Claude Code keeps a single session JSONL file open and appends
+Idempotency is mtime+size-aware (see ``copy_dedup`` and codex_ingest's
+module docstring for the same rationale — size alone misses an equal-size
+rewrite). Claude Code keeps a single session JSONL file open and appends
 events as turns happen, so the same filename keeps growing — we re-copy
-whenever the source has grown. The same size guard applies to spillover
+whenever the source has grown. The same dedup guard applies to spillover
 files in the sibling ``<uuid>/`` directory that Claude Code uses for
-oversized tool outputs.
+oversized tool outputs. A course-start time floor (``course_floor``) also
+applies, keyed on the top-level session file's mtime — see that module's
+docstring for the privacy rationale and the known false-negative case.
 
 Contract: never raises. Returns the list of copied destination paths.
 
@@ -34,7 +37,7 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from tests._capture import ai_traces
+from tests._capture import ai_traces, copy_dedup, course_floor, platform_compat
 
 CLAUDE_SESSIONS_DIR = Path(ai_traces.AI_TRACES_DIR) / "claude" / "raw" / "sessions"
 SESSION_GLOB = "*.jsonl"
@@ -86,12 +89,15 @@ def _session_cwd(path: Path) -> str:
 
 
 def _same_path(candidate: str, repo: Path) -> bool:
+    """True if ``candidate`` is ``repo`` itself or nested inside it.
+
+    Thin wrapper around the shared ``platform_compat.path_within_repo``
+    helper — see its docstring for the containment/case/nested-foreign-repo
+    semantics shared with codex_ingest and vscode_chat_ingest.
+    """
     if not candidate:
         return False
-    try:
-        return Path(candidate).resolve() == repo.resolve()
-    except (OSError, ValueError):
-        return False
+    return platform_compat.path_within_repo(candidate, repo)
 
 
 def _sync_spillover_dir(src_dir: Path, dest_dir: Path) -> int:
@@ -111,12 +117,16 @@ def _sync_spillover_dir(src_dir: Path, dest_dir: Path) -> int:
                 continue
             dest = dest_dir / rel
             try:
-                src_size = src.stat().st_size
+                src_stat = src.stat()
             except OSError:
                 continue
             if dest.exists():
                 try:
-                    if dest.stat().st_size >= src_size:
+                    dest_stat = dest.stat()
+                    if copy_dedup.dest_is_up_to_date(
+                        dest_stat.st_size, dest_stat.st_mtime,
+                        src_stat.st_size, src_stat.st_mtime,
+                    ):
                         continue
                 except OSError:
                     continue
@@ -131,21 +141,32 @@ def _sync_spillover_dir(src_dir: Path, dest_dir: Path) -> int:
     return written
 
 
-def ingest_transcripts(repo: Path, session_started_at: float) -> List[Path]:
+def ingest_transcripts(
+    repo: Path, skipped: Optional[List[Path]] = None,
+) -> List[Path]:
     """Copy matching sessions into repo/.ai-traces/claude/raw/sessions/.
 
-    Selection: any session JSONL whose first cwd-bearing event resolves to
-    ``repo``. Size-aware re-copy for both the JSONL and any sibling
-    spillover directory. Never raises.
+    When ``skipped`` is provided, every session that MATCHED this repo and
+    cleared the course floor but was already up to date is appended to it.
+    That is the "matched, not copied" population the capture_counts commit
+    trailer needs: without it ``matched == copied``, so a steady-state run
+    (nothing new to copy) emits no trailer at all and reads exactly like
+    ingest being broken. Sessions rejected by the cwd filter or the course
+    floor are deliberately absent from BOTH lists — counting them would
+    leak the student's AI use outside this course.
 
-    ``session_started_at`` is accepted for API stability but unused — see
-    codex_ingest for the rationale (same workflow shape).
+    Selection: any session JSONL whose first cwd-bearing event resolves to
+    ``repo``, and whose file mtime is at or after the course-start floor
+    when one is configured (see ``course_floor``). Mtime+size-aware
+    re-copy for both the JSONL and any sibling spillover directory (see
+    ``copy_dedup``). Never raises.
     """
-    del session_started_at
     try:
         projects_dir = _claude_projects_dir()
         if projects_dir is None or not projects_dir.is_dir():
             return []
+
+        floor = course_floor.get_course_start_floor(repo)
 
         copied: List[Path] = []
         try:
@@ -161,20 +182,26 @@ def ingest_transcripts(repo: Path, session_started_at: float) -> List[Path]:
                 continue
             if not _same_path(_session_cwd(src), repo):
                 continue
+            try:
+                src_stat = src.stat()
+            except OSError:
+                continue
+            if course_floor.file_predates_course(src_stat.st_mtime, floor):
+                continue
             dest_dir = repo / CLAUDE_SESSIONS_DIR
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
             except OSError:
                 return copied
             dest = dest_dir / src.name
-            try:
-                src_size = src.stat().st_size
-            except OSError:
-                continue
             need_copy = True
             if dest.exists():
                 try:
-                    if dest.stat().st_size >= src_size:
+                    dest_stat = dest.stat()
+                    if copy_dedup.dest_is_up_to_date(
+                        dest_stat.st_size, dest_stat.st_mtime,
+                        src_stat.st_size, src_stat.st_mtime,
+                    ):
                         need_copy = False
                 except OSError:
                     pass
@@ -184,6 +211,9 @@ def ingest_transcripts(repo: Path, session_started_at: float) -> List[Path]:
                     copied.append(dest)
                 except OSError:
                     continue
+            elif skipped is not None:
+                # Matched this repo and cleared the floor, already current.
+                skipped.append(dest)
 
             # Sibling spillover directory: <uuid>/ alongside <uuid>.jsonl,
             # holding oversized tool outputs that exceed inline limits.

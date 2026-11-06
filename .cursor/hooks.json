@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" session_start >/dev/null 2>&1; fi; exit 0'"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" before_submit_prompt >/dev/null 2>&1; fi; exit 0'"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" after_file_edit >/dev/null 2>&1; fi; exit 0'"
+      }
+    ],
+    "afterTabFileEdit": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" after_tab_file_edit >/dev/null 2>&1; fi; exit 0'"
+      }
+    ],
+    "stop": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" stop >/dev/null 2>&1; fi; exit 0'"
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.cursor/hooks/_run.py\" session_end >/dev/null 2>&1; fi; exit 0'"
+      }
+    ]
+  }
+}

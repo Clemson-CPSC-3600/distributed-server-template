@@ -44,15 +44,28 @@ class CodexAdapter:
             ):
                 return IngestResult(adapter_name=self.name)
 
-            copied = codex_ingest.ingest_transcripts(repo, since or 0.0)
+            skipped: list = []
+            ancestor_cwd: list = []
+            copied = codex_ingest.ingest_transcripts(
+                repo, skipped=skipped, ancestor_cwd=ancestor_cwd,
+            )
             if not copied and not evidence_root.exists():
-                return IngestResult(adapter_name=self.name)
+                # Carry the mismatch even on the empty path: "nothing copied
+                # AND no evidence dir" is precisely the shape a workspace-root
+                # mismatch produces, so dropping it here would re-hide the
+                # signal in the one case it exists to expose.
+                return IngestResult(
+                    adapter_name=self.name,
+                    rollouts_ancestor_cwd=list(ancestor_cwd),
+                )
 
             ai_traces.ensure_attestation(repo)
             built = codex_normalize.normalize_all(repo)
             return IngestResult(
                 adapter_name=self.name,
                 rollouts_copied=list(copied),
+                rollouts_skipped=list(skipped),
+                rollouts_ancestor_cwd=list(ancestor_cwd),
                 summaries_built=list(built),
                 source_hashes=ai_traces.collect_hashes(repo),
             )

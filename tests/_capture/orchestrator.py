@@ -20,13 +20,14 @@ import contextlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional
 
-from tests._capture import auth, git_ops, metadata
+from tests._capture import auth, capture_health, git_ops, metadata, redaction
 from tests._capture.agent_adapters import installed_adapters
 from tests._capture.agent_adapters.base import AdapterMetadata, IngestResult
 
@@ -62,6 +63,25 @@ def take_snapshot(
                 _log(repo, f"orchestrator: lock contention, trigger={trigger} -- skipped")
                 return None
 
+            # Non-pytest triggers do not pass through capture.session_start.
+            # Refresh their ancestry too, so a fresh clone extends the remote
+            # archive instead of starting a disconnected snapshot chain.
+            if trigger != "pytest":
+                try:
+                    fetched = git_ops.fetch_auto_track(repo)
+                except (OSError, subprocess.TimeoutExpired):
+                    fetched = None
+                if not fetched:
+                    # Offline clones can still preserve the last fetched
+                    # remote ancestry. This is cached evidence, not upload
+                    # acknowledgment; the receipt continues to say failed.
+                    cached = git_ops.run_git(
+                        ["rev-parse", "--verify", "refs/remotes/origin/auto-track"],
+                        cwd=repo, timeout=5.0)
+                    if cached.returncode == 0:
+                        git_ops.run_git(["update-ref", git_ops.AUTO_TRACK_ORIGIN_TIP_REF,
+                                         cached.stdout.strip()], cwd=repo, timeout=5.0)
+
             # Session-id dedupe (skip for manual trigger per spec row 6).
             # Match the body's `session_id:` line exactly: substring match
             # would false-positive against the `agent_session_id:` line if
@@ -93,17 +113,95 @@ def take_snapshot(
                         _log(repo, f"orchestrator: adapter={adapter.name} err={err}")
                 except Exception as e:
                     _log(repo, f"orchestrator: adapter={adapter.name} crashed: {e}")
-                    # Per spec §12: one bad adapter cannot block snapshots.
+                    # Per spec §12: one bad adapter cannot block snapshots --
+                    # but the crash is recorded as an IngestResult so it
+                    # surfaces in the capture-health manifest instead of
+                    # looking identical to "this tool was never used".
+                    adapter_results.append(
+                        IngestResult.from_exception(adapter.name, e))
                     continue
+
+            # Redaction (uvd.5). Runs AFTER every adapter has written its
+            # raw artifacts and BEFORE the health manifest and any staging,
+            # so nothing unredacted can enter a snapshot. Raw artifacts stay
+            # on disk (gitignored + unstaged); the committed derivative is
+            # `.ai-traces/<adapter>/redacted/`. Never raises.
+            redaction_ok = True
+            try:
+                redaction_report = redaction.redact_traces(repo)
+                redaction_ok = not bool(redaction_report.errors)
+                for err in redaction_report.errors:
+                    _log(repo, f"orchestrator: redaction err={err}")
+            except Exception as e:
+                redaction_ok = False
+                _log(repo, f"orchestrator: redaction crashed: {e}")
+
+            # Capture-health manifest. Written BEFORE preview_tree so it is
+            # part of the snapshot tree. Its content is deliberately stable
+            # run-to-run (see capture_health) so tree-SHA dedupe survives.
+            _write_health_manifest(repo, installed, adapter_results, redaction_ok=redaction_ok)
 
             head_ref, head_sha = git_ops.current_head_info(repo)
             git_state = git_ops.detect_git_state(repo)
 
-            base_paths = ["src", "tests", "AGENTS.md", "AI_POLICY.md"]
+            base_paths = ["src", "tests", "AGENTS.md", "AI_POLICY.md",
+                          capture_health.HEALTH_FILE, "tools/CAPTURE_RELEASE.json"]
             all_paths = base_paths + sorted(set(adapter_paths))
             existing = [p for p in all_paths if (repo / p).exists()]
 
-            new_tree = git_ops.preview_tree(repo, existing)
+            # Collect force_paths + unstage_after across adapters. We probe
+            # via getattr so adapters predating Task 2.5.10 (no override)
+            # cleanly inherit empty defaults. Collected HERE, before
+            # preview_tree, because the preview must stage exactly what the
+            # commit will stage -- a gitignored force-path fed to a plain
+            # `git add -A` makes git exit 1, which would return a None
+            # preview and silently disable tree-SHA dedupe.
+            force_set: set = set()
+            unstage_set: set = set()
+            for adapter in installed:
+                try:
+                    fp = getattr(adapter, "force_paths", lambda: [])()
+                    force_set.update(fp or [])
+                except Exception:
+                    pass
+                try:
+                    ua = getattr(adapter, "unstage_after", lambda: [])()
+                    unstage_set.update(ua or [])
+                except Exception:
+                    pass
+
+            # Raw trace bytes are staging only (uvd.5): the trace dirs are
+            # still FORCE staged (Attack K -- a student must not be able to
+            # hide traces by gitignoring them), but the unredacted raw/
+            # subdirs are dropped from the index right afterwards, leaving
+            # the redacted derivative as the committed evidence. Derived
+            # from disk so hook-only tools (Cursor) are covered too.
+            try:
+                unstage_set.update(redaction.raw_unstage_paths(repo))
+            except Exception as e:
+                redaction_ok = False
+                _log(repo, f"orchestrator: raw unstage list failed: {e}")
+
+            if not redaction_ok:
+                # A failed sanitizer may have left raw payloads in normalized
+                # files. Keep the code state and an explicit health record,
+                # but stage no conversation tier from this attempt.
+                def safe_path(path):
+                    return not (path == ".ai-traces" or path.startswith(".ai-traces/")
+                                or path.startswith(".codex-transcripts")
+                                or path.startswith(".claude-transcripts"))
+                existing = [path for path in existing if safe_path(path)]
+                force_set = {path for path in force_set if safe_path(path)}
+                if (repo / capture_health.HEALTH_FILE).is_file():
+                    existing.append(capture_health.HEALTH_FILE)
+                    force_set.add(capture_health.HEALTH_FILE)
+                _write_health_manifest(repo, installed, adapter_results, redaction_ok=False)
+
+            new_tree = git_ops.preview_tree(
+                repo, existing,
+                force_paths=sorted(force_set),
+                unstage_after=sorted(unstage_set),
+            )
 
             # Tree-SHA dedupe (skip for manual; skip when adapter session is
             # new; skip when force=True so run_tests.py always logs a result
@@ -168,33 +266,23 @@ def take_snapshot(
                 agent_name=agent_name,
                 agent_session_id=agent_session_id,
                 artifact_hashes=artifact_hashes or None,
+                capture_counts=_capture_counts(adapter_results) or None,
             )
             if manual_reason:
                 msg = msg.rstrip("\n") + f"\nmanual_reason: {manual_reason}\n"
+            msg = msg.rstrip("\n") + f"\nredaction_status: {'passed' if redaction_ok else 'failed'}\n"
 
-            # Collect force_paths + unstage_after across adapters. We probe
-            # via getattr so adapters predating Task 2.5.10 (no override)
-            # cleanly inherit empty defaults.
-            force_set: set = set()
-            unstage_set: set = set()
-            for adapter in installed:
-                try:
-                    fp = getattr(adapter, "force_paths", lambda: [])()
-                    force_set.update(fp or [])
-                except Exception:
-                    pass
-                try:
-                    ua = getattr(adapter, "unstage_after", lambda: [])()
-                    unstage_set.update(ua or [])
-                except Exception:
-                    pass
-
+            # force_set / unstage_set were collected above, before
+            # preview_tree, so the previewed tree and the committed tree
+            # stage exactly the same paths.
             new_sha = git_ops.snapshot_to_auto_track(
                 repo, msg, existing, head_ref, head_sha,
                 force_paths=sorted(force_set),
                 unstage_after=sorted(unstage_set),
             )
             if new_sha is None:
+                _write_health_manifest(repo, installed, adapter_results,
+                                       redaction_ok=redaction_ok, snapshot_ok=False)
                 _log(repo, f"orchestrator: snapshot failed trigger={trigger}")
                 return None
 
@@ -210,6 +298,75 @@ def take_snapshot(
 
 
 # --- helpers --------------------------------------------------------------
+
+def _write_health_manifest(
+    repo: Path,
+    installed: List,
+    adapter_results: List[IngestResult],
+    *,
+    redaction_ok: bool = True,
+    snapshot_ok: bool = True,
+) -> None:
+    """Refresh `.ai-traces/capture-health.json`. Never raises."""
+    try:
+        errors_by_adapter: dict = {}
+        for result in adapter_results:
+            if result.errors:
+                errors_by_adapter.setdefault(result.adapter_name, []).extend(
+                    str(e) for e in result.errors)
+        health = capture_health.build_health(
+            repo,
+            present_names=[a.name for a in installed],
+            errors_by_adapter=errors_by_adapter,
+            workspace_root_mismatch=_workspace_root_mismatch(adapter_results),
+        )
+        health["redaction_ok"] = redaction_ok
+        health["snapshot_ok"] = snapshot_ok
+        try:
+            package = json.loads((repo / "tools/CAPTURE_RELEASE.json").read_text(encoding="utf-8"))
+            digest = package.get("package_sha256")
+            health["capture_package"] = digest if isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) else "unknown"
+        except (OSError, ValueError, AttributeError):
+            health["capture_package"] = "unknown"
+        capture_health.write_health(repo, health)
+    except Exception as e:
+        _log(repo, f"orchestrator: health manifest failed: {e}")
+
+
+def _capture_counts(adapter_results: List[IngestResult]) -> dict:
+    """Per-adapter MATCHED-ONLY counts for the commit-message trailers.
+
+    `matched` counts artifacts this repo's ingest matched (copied +
+    already-present/skipped); `copied` counts the new ones. Store-wide scan
+    totals are never computed here — they would leak the student's AI use
+    outside this course.
+    """
+    counts: dict = {}
+    for result in adapter_results:
+        copied = len(result.rollouts_copied)
+        matched = copied + len(result.rollouts_skipped)
+        ancestor = len(getattr(result, "rollouts_ancestor_cwd", ()) or ())
+        # A mismatch-only run has matched == 0 by definition (that IS the
+        # bug: nothing matched because the cwd was above the repo), so the
+        # `matched` short-circuit must not swallow it.
+        if not matched and not ancestor:
+            continue
+        entry = counts.setdefault(
+            result.adapter_name,
+            {"matched": 0, "copied": 0, "ancestor_cwd": 0},
+        )
+        entry["matched"] += matched
+        entry["copied"] += copied
+        entry["ancestor_cwd"] = entry.get("ancestor_cwd", 0) + ancestor
+    return counts
+
+
+def _workspace_root_mismatch(adapter_results: List[IngestResult]) -> bool:
+    """True if any adapter saw a session running from above the repo."""
+    return any(
+        getattr(r, "rollouts_ancestor_cwd", None) for r in adapter_results
+    )
+
 
 def _capture_enabled(repo: Path) -> bool:
     """Same gate as capture.py — read project-template-config.json + env.

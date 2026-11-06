@@ -73,3 +73,46 @@ the student's repository alongside their code through the auto-track snapshot
 ref (locally `refs/auto-track/snapshots`, on the remote the protected
 `auto-track` branch). This is disclosed to the student in `AI_POLICY.md`. Do
 not claim your conversations are private.
+
+### Hook authorization (check once at the start of a session)
+
+**Only applies if this repository contains `.codex/hooks.json`.** If that
+file is not present, skip this entirely and say nothing about it.
+
+If it *is* present, hooks must be authorized once per machine before they
+run. Until then they are **silently inactive** — no prompt, no error, no
+output — so a student can work an entire session believing their effort is
+being recorded when nothing is.
+
+Authorization can only be granted from the **command-line Codex TUI**. The
+editor extension *honors* an authorization that already exists, but it
+cannot create one — there is no way to approve hooks from inside the
+editor. So a student working only in the extension may never be asked.
+
+Near the start of a session, check whether the hooks have ever actually
+run: look for any file under `.ai-traces/codex/heartbeat/`. That directory
+is inside this project, so checking it needs no special permission — and a
+hook writes there whenever one fires. If it is missing or empty while
+`.codex/hooks.json` exists, the hooks have never run. Tell the student
+once, plainly:
+
+> Heads up: this project's activity hooks aren't authorized on this machine
+> yet, and they can't be approved from the editor. Open a terminal, run
+> `codex` in this folder, then run `/hooks` and approve the listed hooks.
+> Your work runs fine either way — this only affects whether your effort is
+> recorded.
+
+Mention it once and move on; do not nag, and do not block the student's
+work over it. Do not go looking through the student's Codex configuration
+outside this project to verify — the heartbeat check above is enough, and
+`run_tests.py` performs a stricter check of its own.
+
+Re-authorization is also needed after the instructor changes the hooks,
+because authorization is tied to the exact contents of the file. An old
+heartbeat can linger from before such a change, so its presence is not
+proof that hooks are working *now* — `run_tests.py` is what catches that
+case.
+
+Never suggest bypassing the trust prompt (for example with
+`--dangerously-bypass-hook-trust`). It disables the student's own review of
+what those hooks run, and it does not persist anyway.
