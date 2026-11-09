@@ -21,6 +21,9 @@ from tools import preflight
 
 @pytest.fixture
 def tmp_repo(tmp_path, monkeypatch):
+    # These cases exercise a student workstation, even when pytest runs in CI.
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     # Isolate from the developer's global git config -- otherwise their
     # credential.helper (set globally on dev machines) bleeds into the
     # "missing helper" tests. Apple's git ships extra config layers, so

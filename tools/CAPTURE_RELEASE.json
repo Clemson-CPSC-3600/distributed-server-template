@@ -124,7 +124,7 @@
     "tests/test_orchestrator_lock.py": "16de2a4a35eda016bd5ab5f25d1fe822719580b0a7398b82144bc6134cd4824e",
     "tests/test_platform_compat.py": "064c799a805da315ce4a91de3307008709e36ff8c29dd3a50349390c93279921",
     "tests/test_post_commit_entry.py": "692480173a35b923f921c928a5e299464f933e807b342adbe4501a2ac99e1652",
-    "tests/test_preflight.py": "e0b236a42e4ad852a800c85ac6fbd3517a09e0acf02408e85196d26424281dc6",
+    "tests/test_preflight.py": "0b018179c997c318141b89a6eb23bd9281ae2436c58ba60ca1cf25934747ab1a",
     "tests/test_private_work_capture_boundary.py": "1dfc7d9ba423612347fd5958d300ccbbdedffb3e0db1e8bb4deb1c207baf98a2",
     "tests/test_process_tracking_claims.py": "bf77db453bcc6e939ac19110e8f5ff1907e64f051c108c22f6c6a68d8b835f32",
     "tests/test_runtime_triggers.py": "0f0111752e71230684fa986df80262d6d0c812dd5acc6ee0185f6e5490429cc1",
@@ -138,6 +138,6 @@
     "tools/validate_student_repo.py": "b406597bfc5665c51e93f068af6ef0b22fa6bec0432c51c7b69a62824f0bc752",
     "tools/verify_integrity.py": "dd0864007deecbca278bfb724d14c005444e28fdefcc55fd8f04948b1e6414ef"
   },
-  "package_sha256": "912e957cedcadfc46bfa1cc41328c6443c04e4b84fe5eb78dcf3f79f501fc337",
+  "package_sha256": "6cae860a3a7b82b7c3a4ccd64c00ed46cfb8a6d8f9fc526a86110b4f1ca32692",
   "schema_version": 1
 }
