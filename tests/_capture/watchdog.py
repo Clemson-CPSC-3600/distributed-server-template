@@ -74,9 +74,11 @@ def record_hang_snapshot(repo: Path, session_id: str,
     spec section 11 and the auto-track plan Phase 4 intro.
 
     Bypassing the orchestrator also means NO REDACTION PASS runs here, so
-    everything whose bytes are only safe after redaction (raw/, normalized/,
-    the interaction stream) is left out of this snapshot. Running redaction
-    instead would race the hung parent, which may be mid-redaction itself.
+    all current AI-trace tiers are omitted, including derivatives, markers,
+    heartbeats and metadata. Cached output may have changed since its last
+    verified pass. These paths are not even offered to Git for staging, so
+    it cannot read or race files the hung parent may be writing. Previously
+    safe evidence remains reachable through the snapshot's Git parents.
     """
     from tests._capture import git_ops, metadata, redaction
 
@@ -95,7 +97,7 @@ def record_hang_snapshot(repo: Path, session_id: str,
         git_state=git_state,
         trigger="pytest_watchdog",
     )
-    existing = [p for p in ["src", "tests", ".ai-traces", ".codex",
+    existing = [p for p in ["src", "tests", ".codex",
                             "AGENTS.md", "AI_POLICY.md"]
                 if (repo / p).exists()]
     return git_ops.snapshot_to_auto_track(

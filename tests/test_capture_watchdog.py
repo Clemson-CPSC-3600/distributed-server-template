@@ -43,9 +43,9 @@ def test_watchdog_hang_path_writes_to_auto_track(tmp_git_repo_with_capture):
 def test_watchdog_snapshot_never_commits_unredacted_trace_content(
         tmp_git_repo_with_capture):
     """The watchdog skips the orchestrator (and so the redaction pass), so
-    it must not stage anything whose bytes are only safe AFTER redaction:
-    raw/, normalized/ and the interaction stream. The redacted derivative
-    and the heartbeat still go in."""
+    it must omit the whole AI-trace namespace. Previously redacted output
+    and content-free metadata are unverified while the parent may be writing
+    them; safe evidence from earlier snapshots remains in Git parents."""
     import time
     from tests._capture import watchdog
 
@@ -69,7 +69,5 @@ def test_watchdog_snapshot_never_commits_unredacted_trace_content(
         ["git", "ls-tree", "-r", "--name-only", sha],
         cwd=repo, capture_output=True, text=True, check=True,
     ).stdout.splitlines())
-    assert ".ai-traces/codex/redacted/rollouts/r.jsonl" in tree
-    assert ".ai-traces/codex/heartbeat/s1.json" in tree
-    assert not [p for p in tree if "/raw/" in p or "/normalized/" in p]
-    assert ".ai-traces/interaction-stream.jsonl" not in tree
+    assert not [p for p in tree if p.startswith(".ai-traces/")]
+    assert "src/.gitkeep" in tree

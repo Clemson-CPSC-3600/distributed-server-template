@@ -134,6 +134,7 @@ import json
 import os
 import re
 import shlex
+import stat
 import subprocess
 import time
 import urllib.parse
@@ -4642,12 +4643,78 @@ def _read_bytes(path: Path) -> bytes:
         return b"<missing>"
 
 
+def _output_stat(path: Path, repo: Path) -> Optional[os.stat_result]:
+    """Inspect staged output without following an alias or opening a device.
+
+    Git stages symlinks themselves, not the regular files their targets name.
+    Every existing component below the repository root must therefore have
+    the same ordinary-file/directory meaning for Git and for the sanitizer.
+    The root itself may have a platform alias (for example macOS /tmp).
+    """
+    relative = path.absolute().relative_to(repo.absolute())
+    current = repo
+    parts = relative.parts
+    for index, part in enumerate(parts):
+        current = current / part
+        try:
+            state = current.lstat()
+        except FileNotFoundError:
+            return None
+        reparse = getattr(state, "st_file_attributes", 0) & 0x400
+        final = index == len(parts) - 1
+        if (reparse or stat.S_ISLNK(state.st_mode)
+                or not (stat.S_ISREG(state.st_mode) if final
+                        else stat.S_ISDIR(state.st_mode))):
+            raise ValueError("staged_output_invalid")
+    return state
+
+
+def _output_state(path: Path, repo: Path) -> Optional[Dict[str, Any]]:
+    """Hash regular staged bytes; missing files are an explicit cache state."""
+    before = _output_stat(path, repo)
+    if before is None:
+        return None
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    with os.fdopen(descriptor, "rb") as source:
+        opened = os.fstat(source.fileno())
+        if (not stat.S_ISREG(opened.st_mode)
+                or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)):
+            raise ValueError("staged_output_invalid")
+        digest = hashlib.sha256()
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    after = _output_stat(path, repo)
+    if (after is None or (before.st_dev, before.st_ino, before.st_size,
+                         before.st_mtime_ns, before.st_ctime_ns)
+            != (after.st_dev, after.st_ino, after.st_size,
+                after.st_mtime_ns, after.st_ctime_ns)):
+        raise ValueError("staged_output_changed")
+    return {"size": after.st_size, "mtime_ns": after.st_mtime_ns,
+            "sha256": digest.hexdigest()}
+
+
+def _write_staged_output(path: Path, payload: str, repo: Path) -> None:
+    _output_stat(path, repo)
+    _write_if_changed(path, payload)
+    _output_stat(path, repo)
+
+
+def _remove_required(path: Path, repo: Path) -> None:
+    """Required removal must fail the pass if unsafe bytes remain staged."""
+    _output_stat(path, repo)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 class RedactionCache:
     """Which inputs were already redacted, and what they looked like then.
 
     One entry per input file (keyed by its repo-relative path) holds the
-    input's size, mtime and sha256 as of that redaction, plus the size and
-    mtime of each output it produced (None = "must not exist"). An input
+    input's size, mtime and sha256 as of that redaction, plus the size,
+    mtime and sha256 of each output it produced (None = "must not exist"). An input
     is skipped only if the input AND all its outputs still match.
 
     Checking an input is cheap: size and mtime first, and only if the mtime
@@ -4702,7 +4769,7 @@ class RedactionCache:
             entry["checked_ns"] = time.time_ns()
             self._dirty = True
         recorded = entry.get("outputs", {})
-        return all(_file_state(path) == recorded.get(self._key(path), "missing")
+        return all(_output_state(path, self.repo) == recorded.get(self._key(path), "missing")
                    for path in outputs)
 
     def input_state(self, src: Path) -> Optional[Dict[str, Any]]:
@@ -4727,7 +4794,7 @@ class RedactionCache:
         else:
             self.entries[key] = {
                 **before,
-                "outputs": {self._key(p): _file_state(p) for p in outputs},
+                "outputs": {self._key(p): _output_state(p, self.repo) for p in outputs},
             }
         self._dirty = True
         # Save as we go, so a pass killed part-way still keeps its progress.
@@ -5408,7 +5475,7 @@ def redact_file(redactor: Redactor, src: Path, dst: Path,
     marker = dst.with_name(dst.name + WITHHELD_SUFFIX)
 
     def withhold(reason: str) -> None:
-        _write_if_changed(marker, _withheld_marker(src_rel, reason, size))
+        _write_staged_output(marker, _withheld_marker(src_rel, reason, size), repo)
         report.unparseable.append(src_rel)
         report.files_written.append(ai_traces.repo_rel(repo, marker))
 
@@ -5416,6 +5483,7 @@ def redact_file(redactor: Redactor, src: Path, dst: Path,
         raw_text = src.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         withhold("unreadable_or_binary")
+        _remove_required(dst, repo)
         return
 
     suffix = src.suffix.lower()
@@ -5426,11 +5494,11 @@ def redact_file(redactor: Redactor, src: Path, dst: Path,
         # something the student typed, which rule 2 keeps unconditionally.
         if require_vocabulary and src.name not in USER_INPUT_ONLY_SOURCES:
             withhold("unrecognized_record_vocabulary")
-            _remove_stale(dst)
+            _remove_required(dst, repo)
             return
-        _write_if_changed(dst, redactor.scrub_text(raw_text))
+        _write_staged_output(dst, redactor.scrub_text(raw_text), repo)
         report.files_written.append(ai_traces.repo_rel(repo, dst))
-        _remove_stale(marker)
+        _remove_required(marker, repo)
         return
 
     if suffix == ".jsonl" or "\n" in raw_text.strip():
@@ -5449,38 +5517,38 @@ def redact_file(redactor: Redactor, src: Path, dst: Path,
             # what it contains, so it never reaches the derivative.
             withhold("unparseable")
         else:
-            _remove_stale(marker)
+            _remove_required(marker, repo)
         if not rows:
-            _remove_stale(dst)
+            _remove_required(dst, repo)
             return
         if require_vocabulary and recognize_vocabulary(rows) is None:
             withhold("unrecognized_record_vocabulary")
-            _remove_stale(dst)
+            _remove_required(dst, repo)
             return
         redacted = redact_jsonl_rows(redactor, rows,
                                      adapter=_adapter_of(src_rel))
         payload = "".join(
             json.dumps(r, sort_keys=True, ensure_ascii=False) + "\n"
             for r in redacted)
-        _write_if_changed(dst, payload)
+        _write_staged_output(dst, payload, repo)
         report.files_written.append(ai_traces.repo_rel(repo, dst))
         return
 
     parsed = _try_json(raw_text)
     if parsed is None:
         withhold("unparseable")
-        _remove_stale(dst)
+        _remove_required(dst, repo)
         return
     if require_vocabulary and recognize_vocabulary(
             parsed if isinstance(parsed, list) else [parsed]) is None:
         withhold("unrecognized_record_vocabulary")
-        _remove_stale(dst)
+        _remove_required(dst, repo)
         return
-    _remove_stale(marker)
+    _remove_required(marker, repo)
     redacted = redact_jsonl_rows(redactor, [parsed])[0]
-    _write_if_changed(
+    _write_staged_output(
         dst, json.dumps(redacted, sort_keys=True, indent=2,
-                        ensure_ascii=False) + "\n")
+                        ensure_ascii=False) + "\n", repo)
     report.files_written.append(ai_traces.repo_rel(repo, dst))
 
 
@@ -5561,6 +5629,8 @@ def _redact_file_cached(redactor: Redactor, cache: RedactionCache,
         # be the student's (HOOK LOGS NAME NO SESSION SOURCE).
         known = session.group(1) in redactor.student_codex_sessions()
         key += "#student-session" if known else "#other-session"
+    for output in outputs:
+        _output_stat(output, redactor.repo)
     if cache.is_fresh(key, src, outputs):
         report.skipped_unchanged.append(key)
         return
@@ -5573,12 +5643,47 @@ def _redact_in_place_cached(redactor: Redactor, cache: RedactionCache,
                             path: Path, report: RedactionReport) -> None:
     """`redact_in_place`, skipped when the file is still as we left it."""
     key = ai_traces.repo_rel(redactor.repo, path)
+    _output_stat(path, redactor.repo)
     if cache.is_fresh(key, path, [], verify_content=True):
         report.skipped_unchanged.append(key)
         return
     payload = redact_in_place(redactor, path, report)
     if payload is not None:
         cache.record_written(key, path, payload)
+
+
+def _audit_derivative_outputs(root: Path, cache: RedactionCache) -> None:
+    """Attest orphan and unexpected derivatives too, not just current inputs.
+
+    A pruned raw source does not erase its previously sanitized derivative's
+    provenance. Its recorded byte hash can still attest it. Unknown files or
+    old metadata-only cache records cannot establish that provenance.
+    """
+    recorded: Dict[str, List[Any]] = {}
+    for entry in cache.entries.values():
+        if not isinstance(entry, dict) or not isinstance(entry.get("outputs"), dict):
+            continue
+        for key, value in entry["outputs"].items():
+            if isinstance(value, dict) and isinstance(value.get("sha256"), str):
+                recorded.setdefault(key, []).append(value)
+
+    def visit(directory: Path) -> None:
+        # Check directories without following a symlink/reparse alias, even
+        # when the directory is empty and there is no leaf to inspect.
+        _output_stat(directory / ".capture-output-probe", cache.repo)
+        for path in directory.iterdir():
+            state = path.lstat()
+            if stat.S_ISDIR(state.st_mode) and not (getattr(state, "st_file_attributes", 0) & 0x400):
+                visit(path)
+            else:
+                current = _output_state(path, cache.repo)
+                if current is None or not any(
+                        current["sha256"] == previous["sha256"]
+                        and current["size"] == previous.get("size")
+                        for previous in recorded.get(cache._key(path), [])):
+                    raise ValueError("staged_output_unattested")
+
+    visit(root)
 
 
 def redact_traces(repo: Path) -> RedactionReport:
@@ -5596,11 +5701,19 @@ def redact_traces(repo: Path) -> RedactionReport:
     redactor = Redactor(repo)
     cache = RedactionCache(repo)
     root = repo / ai_traces.AI_TRACES_DIR
+    try:
+        _output_stat(root / ".capture-output-probe", repo)
+    except (OSError, ValueError):
+        report.errors.append("derivative_output_invalid")
+        return report
     _sweep_temp_files(root)
     try:
         adapter_dirs = sorted(p for p in root.iterdir() if p.is_dir())
+    except FileNotFoundError:
+        adapter_dirs = []
     except OSError:
         adapter_dirs = []
+        report.errors.append("derivative_output_invalid")
 
     for adapter_dir in adapter_dirs:
         raw_root = adapter_dir / RAW_SUBDIR
@@ -5643,6 +5756,15 @@ def redact_traces(repo: Path) -> RedactionReport:
                                     report)
             except Exception as e:
                 report.errors.append(f"{name}: {type(e).__name__}: {e}")
+    # All redacted files are force-staged, including leftovers whose raw
+    # source disappeared and files no current adapter input produced.
+    for adapter_dir in adapter_dirs:
+        output_root = adapter_dir / REDACTED_SUBDIR
+        try:
+            if output_root.exists() or output_root.is_symlink():
+                _audit_derivative_outputs(output_root, cache)
+        except Exception:
+            report.errors.append("derivative_output_invalid")
     cache.save()
     return report
 
@@ -5673,26 +5795,15 @@ def raw_unstage_paths(repo: Path) -> List[str]:
 
 
 def unredacted_paths(repo: Path) -> List[str]:
-    """Repo-relative paths whose bytes are only safe AFTER `redact_traces`.
+    """Static exclusions for snapshots that bypass sanitizer and its lock.
 
-    For a snapshot taken WITHOUT a redaction pass (the watchdog's). That is
-    raw/ (never safe), plus normalized/ and the interaction stream, which
-    the adapters write unredacted and the redaction pass rewrites in place.
-    The redacted/ derivatives and heartbeats are not listed: they only ever
-    hold redacted or content-free bytes.
+    No current AI-trace bytes are attested on the watchdog path: even a
+    previously redacted file may have changed since its last safe snapshot.
+    Do not discover paths from disk here; the hung parent may be writing or
+    replacing those namespaces. Previously safe evidence remains in parents.
     """
-    out = raw_unstage_paths(repo)
-    root = repo / ai_traces.AI_TRACES_DIR
-    try:
-        for adapter_dir in sorted(p for p in root.iterdir() if p.is_dir()):
-            if (adapter_dir / "normalized").is_dir():
-                out.append(
-                    f"{ai_traces.AI_TRACES_DIR}/{adapter_dir.name}/normalized")
-    except OSError:
-        pass
-    if (repo / ai_traces.INTERACTION_STREAM).exists():
-        out.append(ai_traces.INTERACTION_STREAM)
-    return out
+    return [ai_traces.AI_TRACES_DIR, ".codex-transcripts", ".claude-transcripts",
+            ".codex/auth.json", *AIDER_SOURCES]
 
 
 def has_withheld_markers(repo: Path, adapter_name: str,

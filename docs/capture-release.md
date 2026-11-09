@@ -54,7 +54,16 @@ no student text is emitted.
 Malformed or unreadable normalized records and interaction streams fail
 sanitization and withhold conversation files from that snapshot. Health records
 show redaction failure; raw input is never treated as a successful empty stream.
-A repaired file can be processed normally on a later capture.
+A repaired file can be processed normally on a later capture. Cached redacted
+derivatives and withholding markers also require matching content hashes; size
+and timestamps alone never attest staged output. Unexpected or unverifiable
+derivative files fail closed, including leftovers whose raw source is gone.
+Required output reads, writes and removals must succeed before the pass is
+reported healthy.
+
+Hang-watchdog snapshots bypass sanitization and therefore omit AI traces before
+staging. They retain code and hang-status evidence; earlier safe conversations
+remain available through the preserved snapshot history.
 
 The health file differentiates detected tools, evidence, hook heartbeats,
 withheld records, ingest errors and workspace mismatch. Unknown formats must
