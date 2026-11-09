@@ -4677,8 +4677,14 @@ class RedactionCache:
                 and isinstance(data.get("entries"), dict)):
             self.entries = data["entries"]
 
-    def is_fresh(self, key: str, src: Path, outputs: List[Path]) -> bool:
-        """True if `src` and every output are exactly as last recorded."""
+    def is_fresh(self, key: str, src: Path, outputs: List[Path], *,
+                 verify_content: bool = False) -> bool:
+        """True if `src` and every output are exactly as last recorded.
+
+        Generated tiers are staged in place, so their bytes must be verified
+        even when a copy preserved old metadata. Raw sources have a separate
+        sanitized derivative and can retain the metadata fast path.
+        """
         entry = self.entries.get(key)
         state = _file_state(src)
         if not isinstance(entry, dict) or state is None:
@@ -4687,8 +4693,9 @@ class RedactionCache:
             return False
         mtime_trusted = (state["mtime_ns"] == entry.get("mtime_ns")
                          and state["mtime_ns"] < entry.get("checked_ns", 0) - RACY_WINDOW_NS)
-        if not mtime_trusted:
-            if _sha256_file(src) != entry.get("sha256"):
+        if verify_content or not mtime_trusted:
+            digest = _sha256_file(src)
+            if digest is None or digest != entry.get("sha256"):
                 return False
             # Same bytes: remember the new mtime so the next check is cheap.
             entry["mtime_ns"] = state["mtime_ns"]
@@ -5491,7 +5498,7 @@ def _remove_stale(path: Path) -> None:
 
 
 def redact_in_place(redactor: Redactor, path: Path,
-                    report: RedactionReport) -> Optional[str]:
+                    report: RedactionReport) -> str:
     """Redact a JSONL file we generated ourselves (normalized/, stream).
 
     DEFAULT DENY applies here too, per RECORD: an event type outside our own
@@ -5499,11 +5506,25 @@ def redact_in_place(redactor: Redactor, path: Path,
     that drifts (or a new adapter's normalizer) cannot silently reopen the
     content leak the taint join exists to close.
 
-    Returns the text the file now holds, or None if it was left untouched.
+    Returns the text the file now holds. Malformed generated files raise a
+    fixed-code error so the orchestrator withholds the conversation tier.
+    The permissive shared loader cannot distinguish empty files from parse
+    failures, and leaving failed input untouched would stage its raw bytes.
     """
-    rows = ai_traces.load_jsonl(path)
-    if not rows:
-        return None
+    rows = []
+    try:
+        with path.open("r", encoding="utf-8") as source:
+            for line in source:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError("normalized_record_invalid")
+                rows.append(row)
+    except (OSError, UnicodeError, ValueError):
+        # Do not expose parse errors containing transcript bytes. The caller
+        # records this failure and never caches it as a successful rewrite.
+        raise ValueError("normalized_record_invalid") from None
     # Relative paths in this tier resolve against the PROJECT ROOT. Every
     # pass after the first reads paths this module already rewrote, and it
     # rewrites them repo-relative -- a session cwd of the project root
@@ -5552,7 +5573,7 @@ def _redact_in_place_cached(redactor: Redactor, cache: RedactionCache,
                             path: Path, report: RedactionReport) -> None:
     """`redact_in_place`, skipped when the file is still as we left it."""
     key = ai_traces.repo_rel(redactor.repo, path)
-    if cache.is_fresh(key, path, []):
+    if cache.is_fresh(key, path, [], verify_content=True):
         report.skipped_unchanged.append(key)
         return
     payload = redact_in_place(redactor, path, report)

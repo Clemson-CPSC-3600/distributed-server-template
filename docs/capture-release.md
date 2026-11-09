@@ -51,10 +51,19 @@ Instructor mirrors can select one archived history with
 `report --repo /path/to/mirror.git --ref refs/students/SUFFIX/auto-track --json`;
 no student text is emitted.
 
+Malformed or unreadable normalized records and interaction streams fail
+sanitization and withhold conversation files from that snapshot. Health records
+show redaction failure; raw input is never treated as a successful empty stream.
+A repaired file can be processed normally on a later capture.
+
 The health file differentiates detected tools, evidence, hook heartbeats,
 withheld records, ingest errors and workspace mismatch. Unknown formats must
 remain visible as withheld/unsupported states. The policy and redaction
 boundary in AI_POLICY.md still govern what is retained.
+
+Preflight checks the effective push destination. SSH and local remotes do not
+require HTTPS credential helpers; HTTP(S) checks honor Git URL-scoped helper
+configuration. Helper presence does not establish that a key or token works.
 
 ## Preparing a package
 
@@ -99,7 +108,10 @@ When a legacy project lacks assignment-config.json, supply `--course-start`
 with its already-configured term start. Accepted dates are normalized to
 `YYYY-MM-DD` in both preview and apply before any target files are written.
 Existing ingestion floors are preserved. Noncanonical paths and case variants
-of protected assignment/configuration paths are rejected before writes.
+of protected assignment/configuration paths are rejected before writes. Every
+destination and ancestor is checked for symlinks/reparse points and unsafe file
+types before mutation. Invalid existing privacy floors reject both preview and
+apply, while valid settings are preserved.
 At submission time, `verify --submission` additionally rejects an untouched
 attestation seed or placeholder. Keep the entries marker and write either
 `no uncaptured AI use` or completed `YYYY-MM-DD HH:MM | tool | description`

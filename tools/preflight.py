@@ -6,7 +6,7 @@ Refuse to run tests until the student's environment is set up:
   1. A virtual environment (or conda env) is active.
   2. pytest is importable in the active interpreter.
   3. (Student distributions only) `origin` remote is configured.
-  4. (Student distributions only) A git credential helper is configured.
+  4. (Student distributions only) HTTPS push destinations have a credential helper.
 
 Exits 0 when ready, 1 otherwise. When invoked directly, prints a short
 diagnostic. run_tests.py invokes :func:`check_environment` programmatically
@@ -22,8 +22,9 @@ import json
 import os
 import subprocess
 import sys
+import uuid
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # ANSI colors -- match style used by setup_credentials.py and run_tests.py.
 if os.environ.get("NO_COLOR"):
@@ -67,23 +68,57 @@ def _run_git(args: List[str], cwd: Path) -> subprocess.CompletedProcess:
     )
 
 
-def _git_remote_url(repo: Path) -> Optional[str]:
+def _git_push_urls(repo: Path) -> List[str]:
+    """Resolve every origin push destination, including Git URL rewrites."""
     try:
-        result = _run_git(["remote", "get-url", "origin"], cwd=repo)
+        result = _run_git(["remote", "get-url", "--push", "--all", "origin"], cwd=repo)
     except (subprocess.SubprocessError, OSError):
-        return None
+        return []
     if result.returncode != 0:
-        return None
-    url = result.stdout.strip()
-    return url or None
+        return []
+    return [url for url in result.stdout.splitlines() if url]
 
 
-def _git_credential_helper(repo: Path) -> str:
+def _git_credential_helper(repo: Path, url: str) -> bool:
+    """Check helper configuration only; never invoke a helper or validate secrets.
+
+    Credential helpers accumulate in configuration order across matching URL
+    scopes. Keep NUL-delimited values intact: only an empty value resets the
+    list, not a newline within a shell helper. Delegate each scope's matching
+    to Git using a unique transient marker, without executing any helper.
+    """
     try:
-        result = _run_git(["config", "--get", "credential.helper"], cwd=repo)
+        result = _run_git(
+            ["config", "--null", "--get-regexp", r"^credential(\..*)?\.helper$"], cwd=repo)
     except (subprocess.SubprocessError, OSError):
-        return ""
-    return result.stdout.strip() if result.returncode == 0 else ""
+        return False
+    if result.returncode != 0:
+        return False
+    configured = False
+    marker = "preflight" + uuid.uuid4().hex
+    matches = {}
+    for entry in result.stdout.split("\0"):
+        if not entry:
+            continue
+        key, separator, helper = entry.partition("\n")
+        if not separator:
+            return False
+        if key != "credential.helper":
+            scope = key[len("credential."):-len(".helper")]
+            if scope not in matches:
+                try:
+                    probe = _run_git(
+                        ["-c", f"credential.{scope}.{marker}=1", "config",
+                         "--get-urlmatch", f"credential.{marker}", url], cwd=repo)
+                except (subprocess.SubprocessError, OSError):
+                    return False
+                if probe.returncode not in (0, 1):
+                    return False
+                matches[scope] = probe.returncode == 0
+            if not matches[scope]:
+                continue
+        configured = helper != ""
+    return configured
 
 
 def _running_in_ci() -> bool:
@@ -147,16 +182,20 @@ def check_environment(repo: Path) -> List[str]:
     # credential-helper check because the checkout action
     # configures token auth via http.extraheader, not credential.helper.
     if (repo / ".git").exists() and _capture_enabled(repo):
-        if _git_remote_url(repo) is None:
+        push_urls = _git_push_urls(repo)
+        if not push_urls:
             failures.append(
                 "No git remote `origin` is configured. Test snapshots can't "
                 "be uploaded.\n"
                 "    Run:  python tools/setup_credentials.py"
             )
-        if not _git_credential_helper(repo) and not _running_in_ci():
+        elif not _running_in_ci() and any(
+            url.lower().startswith(("http://", "https://"))
+            and not _git_credential_helper(repo, url) for url in push_urls
+        ):
             failures.append(
-                "Git credential helper is not configured. Pushes will fail "
-                "or hang.\n"
+                "Git credential helper is not configured for an HTTPS push "
+                "destination. Upload authentication may require setup.\n"
                 "    Run:  python tools/setup_credentials.py"
             )
 

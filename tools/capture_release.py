@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -54,7 +55,7 @@ def package_paths(root: Path) -> list[str]:
                 "test_course_floor", "test_private_work", "test_orchestrator",
                 "test_platform_compat", "test_attestation_template",
                 "test_disclosure", "test_process_tracking", "test_ai_policy",
-                "test_verify_integrity_mode")
+                "test_verify_integrity_mode", "test_preflight")
     for path in (root / "tests").glob("test_*.py"):
         if path.name.startswith(prefixes):
             paths.add(path.relative_to(root).as_posix())
@@ -174,21 +175,69 @@ def verify(root: Path, submission: bool = False) -> dict:
     return {"ok": not errors, "package_sha256": manifest.get("package_sha256"), "errors": errors}
 
 
+def _sync_destination(root: Path, destination: Path) -> None:
+    """Reject links and nonregular paths before planning or writing a package.
+
+    The selected project root is already resolved. Inspect each descendant
+    with lstat rather than following links, including dangling links and
+    Windows junctions/reparse points that could redirect a package write.
+    """
+    try:
+        relative = destination.relative_to(root)
+    except ValueError:
+        raise ValueError("capture destination escapes target project") from None
+    current = root
+    for index, part in enumerate(relative.parts):
+        current = current / part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            raise ValueError("capture destination cannot be inspected") from None
+        if stat.S_ISLNK(info.st_mode) or (
+                getattr(info, "st_file_attributes", 0)
+                & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)):
+            raise ValueError("capture destination contains a symbolic link or reparse point")
+        final = index == len(relative.parts) - 1
+        if not (stat.S_ISREG(info.st_mode) if final else stat.S_ISDIR(info.st_mode)):
+            raise ValueError("capture destination is not a regular file with directory ancestors")
+        if final and info.st_nlink > 1:
+            raise ValueError("capture destination has a shared inode")
+
+
 def sync(source: Path, target: Path, apply: bool = False, course_start: str | None = None) -> dict:
     source_result = verify(source)
     if not source_result["ok"]:
         raise ValueError("source package is not verified: " + ",".join(source_result["errors"]))
     manifest = json.loads((source / MANIFEST).read_text(encoding="utf-8"))
     names = sorted([*manifest["files"], MANIFEST])
+    try:
+        # A caller may explicitly select a root through a symlink (for example
+        # a worktree shortcut); descendants must still never redirect writes.
+        target = target.resolve(strict=True)
+        if not target.is_dir():
+            raise ValueError("target project is not a directory")
+    except (OSError, RuntimeError):
+        raise ValueError("target project cannot be resolved") from None
     # Reject an unsafe package before even creating its target privacy floor.
     for name in names:
-        if "\\" in name or PurePosixPath(name).as_posix() != name:
+        if ("\\" in name or PurePosixPath(name).as_posix() != name
+                or any(part.endswith((".", " ")) or ":" in part
+                       for part in PurePosixPath(name).parts)):
             raise ValueError("capture package contains noncanonical paths")
         protected_name = name.casefold()
-        if protected_name.startswith(PROTECTED) or protected_name in {"project-template-config.json", "assignment-config.json", "protocol.md"} or protected_name.startswith("tests/test_bundle"):
+        if (protected_name.startswith(PROTECTED) or protected_name + "/" in PROTECTED
+                or protected_name in {"project-template-config.json", "assignment-config.json", "protocol.md"}
+                or protected_name.startswith("tests/test_bundle")):
             raise ValueError("capture package includes assignment content")
     actions = []
     floor = target / "assignment-config.json"
+    destinations = [(name, _source(source, name), _source(target, name)) for name in names]
+    for destination in [floor, *(dest for _, _, dest in destinations)]:
+        _sync_destination(target, destination)
+    if floor.exists() and not _assignment_floor_valid(target):
+        raise ValueError("target assignment course_start is invalid; preserve and review its configuration")
     if not floor.exists():
         if course_start is None:
             raise ValueError("target lacks assignment-config.json; provide --course-start YYYY-MM-DD")
@@ -198,8 +247,7 @@ def sync(source: Path, target: Path, apply: bool = False, course_start: str | No
         actions.append({"action": "create", "path": "assignment-config.json", "course_start": course_start})
         if apply:
             floor.write_text(json.dumps({"course_start": course_start}, indent=2) + "\n", encoding="utf-8")
-    for name in names:
-        src, dest = _source(source, name), _source(target, name)
+    for name, src, dest in destinations:
         if dest.is_file() and _digest(dest) == _digest(src):
             continue
         actions.append({"action": "change" if dest.exists() else "create", "path": name})
