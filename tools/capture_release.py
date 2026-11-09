@@ -53,7 +53,8 @@ def package_paths(root: Path) -> list[str]:
                 "test_force_paths", "test_post_commit", "test_sitecustomize",
                 "test_course_floor", "test_private_work", "test_orchestrator",
                 "test_platform_compat", "test_attestation_template",
-                "test_disclosure", "test_process_tracking", "test_ai_policy")
+                "test_disclosure", "test_process_tracking", "test_ai_policy",
+                "test_verify_integrity_mode")
     for path in (root / "tests").glob("test_*.py"):
         if path.name.startswith(prefixes):
             paths.add(path.relative_to(root).as_posix())
