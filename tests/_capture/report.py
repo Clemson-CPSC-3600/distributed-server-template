@@ -16,6 +16,39 @@ def snapshot_ref(repo: Path) -> str | None:
     return None
 
 
+def _snapshot_message(message: str) -> bool:
+    """Recognize the capture message convention, including legacy v1 runs.
+
+    First-parent ancestry also contains ordinary baseline commits. Neither
+    ancestry nor the presence of copied trace files identifies a snapshot.
+    Capture has always written a test-run/snapshot subject plus session_id.
+    This classifies harness records; it is not an authenticity check.
+    """
+    lines = message.strip().splitlines()
+    return bool(lines and lines[0].startswith(("test-run: ", "snapshot: "))
+                and any(line.startswith("session_id: ") and
+                        line.removeprefix("session_id: ").strip()
+                        for line in lines[1:]))
+
+
+def _valid_event(event: object) -> bool:
+    if not isinstance(event, dict):
+        return False
+    # These fields are used for classification and set membership. Validate
+    # before access so an unsupported row cannot stop the rest of the report.
+    for key in ("adapter_name", "event_type"):
+        value = event.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return False
+    # Legacy records may omit IDs; their event identity falls back to a
+    # content hash, while an absent session contributes no session count.
+    for key in ("session_id", "event_id"):
+        value = event.get(key)
+        if value is not None and not isinstance(value, str):
+            return False
+    return True
+
+
 def build_report(repo: Path, ref: str | None = None) -> dict:
     """Count records, never emit student text, paths, session IDs or commands.
 
@@ -25,7 +58,7 @@ def build_report(repo: Path, ref: str | None = None) -> dict:
     ref = ref or snapshot_ref(repo)
     if ref and ref.startswith("-"):
         raise ValueError("invalid snapshot reference")
-    report = {"schema_version": 1, "snapshot_commits": 0, "stream_versions": 0,
+    report = {"schema_version": 1, "snapshot_commits": 0, "archive_commits_scanned": 0, "stream_versions": 0,
               "adapters": {}, "current_stream_sessions": 0,
               "historical_sessions_not_in_current_stream": 0,
               "malformed_records": 0, "health_record_present": False}
@@ -36,8 +69,11 @@ def build_report(repo: Path, ref: str | None = None) -> dict:
     if commits.returncode:
         raise ValueError("snapshot history is unavailable")
     hashes = commits.stdout.splitlines()
-    primary = git_ops.run_git(["log", "--first-parent", "--format=%H", ref], repo)
-    report["snapshot_commits"] = len(primary.stdout.splitlines())
+    primary = git_ops.run_git(["log", "--first-parent", "--format=%B%x00", ref], repo)
+    if primary.returncode:
+        raise ValueError("primary snapshot history is unavailable")
+    report["snapshot_commits"] = sum(_snapshot_message(message)
+                                     for message in primary.stdout.split("\0"))
     report["archive_commits_scanned"] = len(hashes)
     blobs, events, sessions, current = set(), set(), defaultdict(set), set()
     counts = defaultdict(lambda: {"events": 0, "user_prompts": 0, "assistant_messages": 0,
@@ -56,8 +92,8 @@ def build_report(repo: Path, ref: str | None = None) -> dict:
         for line in result.stdout.splitlines():
             try:
                 event = json.loads(line)
-                if not isinstance(event, dict):
-                    raise ValueError("not an event")
+                if not _valid_event(event):
+                    raise ValueError("not a valid event")
             except (ValueError, TypeError):
                 report["malformed_records"] += 1
                 continue

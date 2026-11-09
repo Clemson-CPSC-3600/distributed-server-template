@@ -38,7 +38,7 @@ If you used any AI tool that is NOT locally captured by this repo
 during this assignment, log it here. One entry per session is enough;
 include the tool, what you asked, and what came back at a high level.
 
-Format suggestion:
+Required entry format (one line per session, below the entries marker):
   YYYY-MM-DD HH:MM | tool name | brief description of the interaction
 
 If you did NOT use any uncaptured AI tools during this assignment,

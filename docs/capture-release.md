@@ -18,7 +18,12 @@ python -m tests._capture report --json
 a health record exists, and the last acknowledged upload of the latest local
 snapshot. `pending`, `failed`, `unknown` and `no_snapshot` are distinct states.
 A confirmed receipt means that exact SHA was advertised by the configured
-remote at the recorded time; it does not perform a new network check.
+push destination at the recorded time; it does not perform a new network check.
+Receipts are bound to a hashed destination identity as well as the snapshot.
+Changing the destination makes the old acknowledgment unknown until an upload
+to the new destination is confirmed; raw destination URLs are never retained.
+Multiple push destinations and chained URL rewrites are reported as unknown;
+a single stable Git URL alias is supported.
 Receipts live inside Git's private metadata directory, contain no conversation
 text, and are not part of submissions or committed snapshots.
 
@@ -34,7 +39,9 @@ python -m tests._capture snapshot --reason "retry upload"
 `report` counts known event types across the preserved snapshot graph, including
 merge snapshots and recovered offline forks. It deduplicates event IDs and reports historical sessions
 absent from the newest tree. It emits no student text, session identifiers,
-commands or transcript paths. Missing prompts alongside assistant replies are
+commands or transcript paths. Snapshot counts exclude ordinary starter/main commits; archive scan counts
+include the complete reachable history. Malformed structured rows are counted
+and skipped while other records remain available. Missing prompts alongside assistant replies are
 reported as incomplete coverage. Files disappearing from a later working-tree
 snapshot do not mean older evidence was destroyed.
 When two checkouts create divergent offline histories, recovery keeps the local
@@ -64,7 +71,10 @@ The manifest pins production capture files, hook configurations, compatibility
 fixtures and capture tests. Hashes normalize CRLF to LF. Generation checks the
 actual student package against this manifest before its first commit. Both
 generation scripts stop on a missing manifest or drift. Mutable assignment
-configuration is validated semantically: student capture must be boolean true.
+configuration is validated semantically: student capture must be boolean true
+and an existing assignment configuration must contain a valid ISO course-start
+date. Missing mandatory health results or package identity remain unknown in
+student diagnostics.
 
 The synthetic smoke test never contacts GitHub or reads personal AI sessions.
 It creates two checkouts and a temporary local bare remote, checks both sides
@@ -86,7 +96,9 @@ Review assignment-specific tooling customizations before applying the package.
 When a legacy project lacks assignment-config.json, supply `--course-start`
 with its already-configured term start. Existing ingestion floors are preserved.
 At submission time, `verify --submission` additionally rejects an untouched
-attestation seed; ordinary development checks permit the initial blank.
+attestation seed or placeholder. Keep the entries marker and write either
+`no uncaptured AI use` or completed `YYYY-MM-DD HH:MM | tool | description`
+lines below it. Ordinary development checks permit the initial blank.
 
 ## Before publishing
 

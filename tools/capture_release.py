@@ -15,7 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -75,8 +75,75 @@ def stamp(root: Path, paths: list[str] | None = None) -> dict:
     return manifest
 
 
+def _assignment_floor_valid(root: Path) -> bool:
+    """Validate an existing time-floor setting without changing legacy absence.
+
+    Minimal synthetic manifests and older instructor copies may omit the file.
+    Full packages separately require it through SOFT_TRACKED. An existing file
+    must contain the supported ISO date/datetime (or explicit null in genuine
+    instructor layout); malformed values must never
+    earn a release pass while the ingester falls back to no privacy floor.
+    """
+    path = root / "assignment-config.json"
+    if not path.exists():
+        return True
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+        value = config.get("course_start") if isinstance(config, dict) else None
+        # The authoring workspace deliberately opts out of an ingestion floor.
+        # Require an explicit null and genuine instructor layout; missing keys,
+        # malformed dates, and every student null still fail validation.
+        if (isinstance(config, dict) and "course_start" in config and value is None
+                and verify_integrity.distribution_mode(root) == "instructor"):
+            return True
+        if not isinstance(value, str) or not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:\d{2})?)?", value):
+            return False
+        datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith(("Z", "z")) else value)
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def _attestation_complete(text: str) -> bool:
+    """Recognize completed declarations structurally, without judging content.
+
+    The shipped delimiter separates instructions from entries. Below it,
+    accept the explicit no-use declaration or one dated tool/description
+    entry per line in the seed's documented YYYY-MM-DD HH:MM | tool | summary
+    format. Obvious placeholders and malformed timestamps remain incomplete.
+    """
+    marker = "----- begin entries -----"
+    if text.count(marker) != 1:
+        return False
+    entries = text.split(marker, 1)[1].strip()
+    if entries.casefold() == "no uncaptured ai use":
+        return True
+    if not entries:
+        return False
+    placeholder = re.compile(r"^(?:(?:todo|tbd|placeholder)(?:\b.*)?|tool name|brief description(?: of the interaction)?|n/a|none)$", re.I)
+    for line in entries.splitlines():
+        if not line.strip():
+            continue
+        parts = [part.strip() for part in line.split("|", 2)]
+        if len(parts) != 3 or not all(parts):
+            return False
+        timestamp, tool, summary = parts
+        if placeholder.match(tool) or placeholder.match(summary):
+            return False
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}", timestamp):
+            return False
+        try:
+            datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
+        except ValueError:
+            return False
+    return True
+
+
 def verify(root: Path, submission: bool = False) -> dict:
     errors = verify_integrity.configuration_errors(root, verify_integrity.distribution_mode(root))
+    if not _assignment_floor_valid(root):
+        errors.append("assignment_course_start_invalid")
     try:
         manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
         files = manifest["files"]
@@ -98,9 +165,7 @@ def verify(root: Path, submission: bool = False) -> dict:
         if submission:
             path = root / ".ai-traces/external-attestation.txt"
             text = path.read_text(encoding="utf-8") if path.is_file() else ""
-            marker = "----- begin entries -----"
-            entries = text.split(marker, 1)[-1].strip() if marker in text else text.strip()
-            if not entries:
+            if not _attestation_complete(text):
                 errors.append("attestation_incomplete")
     except (OSError, ValueError, KeyError, TypeError):
         errors.append("capture_release_manifest_invalid")

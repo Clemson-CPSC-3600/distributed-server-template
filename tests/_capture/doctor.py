@@ -42,10 +42,10 @@ def build_report(repo: Path) -> dict:
     if not health_present:
         health = {}
         errors.append("capture_health_unknown")
-    elif health.get("redaction_ok") is False:
-        errors.append("redaction_failed")
-    if health.get("snapshot_ok") is False:
-        errors.append("snapshot_failed")
+    if health.get("redaction_ok") is not True:
+        errors.append("redaction_failed" if health.get("redaction_ok") is False else "redaction_unknown")
+    if health.get("snapshot_ok") is not True:
+        errors.append("snapshot_failed" if health.get("snapshot_ok") is False else "snapshot_unknown")
     summaries, warnings = {}, []
     adapters = health.get("adapters")
     adapters = adapters if isinstance(adapters, dict) else {}
@@ -70,6 +70,8 @@ def build_report(repo: Path) -> dict:
         errors.append("latest_upload_" + receipt["status"])
     package = health.get("capture_package")
     package = package if isinstance(package, str) and re.fullmatch(r"[0-9a-f]{64}", package) else "unknown"
+    if package == "unknown":
+        errors.append("capture_package_unknown")
     return {"schema_version": 1, "ok": not errors,
             "configuration": {"capture_enabled": enabled is True},
             "origin_configured": origin_configured,

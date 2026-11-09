@@ -80,10 +80,11 @@ def test_doctor_reports_upload_pending_then_confirmed(work, tmp_path):
     from tests._capture.upload import push_snapshot
     sha = git(work, 'rev-parse', 'HEAD')
     git(work, 'update-ref', 'refs/auto-track/snapshots', sha)
-    assert build_report(work)['upload']['status'] == 'pending'
+    assert build_report(work)['upload']['status'] == 'unknown'
     remote = tmp_path / 'remote.git'
     git(tmp_path, 'init', '--bare', '-q', str(remote))
     git(work, 'remote', 'add', 'origin', str(remote))
+    assert build_report(work)['upload']['status'] == 'pending'
     push_snapshot(work, sha)
     assert build_report(work)['upload']['status'] == 'confirmed'
 
