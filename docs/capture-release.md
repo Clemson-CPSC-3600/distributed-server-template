@@ -76,7 +76,9 @@ and an existing assignment configuration must contain a valid ISO course-start
 date. Missing mandatory health results or package identity remain unknown in
 student diagnostics.
 
-The synthetic smoke test never contacts GitHub or reads personal AI sessions.
+The synthetic smoke test isolates personal Git and AI configuration before
+setup. It never contacts GitHub or reads personal AI sessions. Failures retain
+Git operation names and status/timeout codes, without raw logs or paths.
 It creates two checkouts and a temporary local bare remote, checks both sides
 of a conversation, redaction, health, offline failure, upload acknowledgment,
 fresh-clone ancestry and a history-aware report. It is necessary but does not
@@ -94,7 +96,10 @@ assignment source, solution, protocol, bundle-test and mutable configuration
 paths. It performs no deletions, pushes, publication or remote configuration.
 Review assignment-specific tooling customizations before applying the package.
 When a legacy project lacks assignment-config.json, supply `--course-start`
-with its already-configured term start. Existing ingestion floors are preserved.
+with its already-configured term start. Accepted dates are normalized to
+`YYYY-MM-DD` in both preview and apply before any target files are written.
+Existing ingestion floors are preserved. Noncanonical paths and case variants
+of protected assignment/configuration paths are rejected before writes.
 At submission time, `verify --submission` additionally rejects an untouched
 attestation seed or placeholder. Keep the entries marker and write either
 `no uncaptured AI use` or completed `YYYY-MM-DD HH:MM | tool | description`

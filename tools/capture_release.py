@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 from datetime import date, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -179,18 +179,26 @@ def sync(source: Path, target: Path, apply: bool = False, course_start: str | No
     if not source_result["ok"]:
         raise ValueError("source package is not verified: " + ",".join(source_result["errors"]))
     manifest = json.loads((source / MANIFEST).read_text(encoding="utf-8"))
+    names = sorted([*manifest["files"], MANIFEST])
+    # Reject an unsafe package before even creating its target privacy floor.
+    for name in names:
+        if "\\" in name or PurePosixPath(name).as_posix() != name:
+            raise ValueError("capture package contains noncanonical paths")
+        protected_name = name.casefold()
+        if protected_name.startswith(PROTECTED) or protected_name in {"project-template-config.json", "assignment-config.json", "protocol.md"} or protected_name.startswith("tests/test_bundle"):
+            raise ValueError("capture package includes assignment content")
     actions = []
     floor = target / "assignment-config.json"
     if not floor.exists():
         if course_start is None:
             raise ValueError("target lacks assignment-config.json; provide --course-start YYYY-MM-DD")
-        date.fromisoformat(course_start)
+        # Python also accepts basic and week-date forms; store the canonical
+        # date required by release validation and show those exact bytes' value.
+        course_start = date.fromisoformat(course_start).isoformat()
         actions.append({"action": "create", "path": "assignment-config.json", "course_start": course_start})
         if apply:
             floor.write_text(json.dumps({"course_start": course_start}, indent=2) + "\n", encoding="utf-8")
-    for name in sorted([*manifest["files"], MANIFEST]):
-        if name.startswith(PROTECTED) or name in {"project-template-config.json", "PROTOCOL.md"} or name.startswith("tests/test_bundle"):
-            raise ValueError("capture package includes assignment content")
+    for name in names:
         src, dest = _source(source, name), _source(target, name)
         if dest.is_file() and _digest(dest) == _digest(src):
             continue
@@ -203,6 +211,66 @@ def sync(source: Path, target: Path, apply: bool = False, course_start: str | No
 
 
 def smoke() -> dict:
+    """Run synthetic capture without inheriting personal Git or AI settings."""
+    with tempfile.TemporaryDirectory(prefix="capture-release-") as directory:
+        base = Path(directory)
+        # Start clean BEFORE git init/commit too: host excludes, hooks, signing,
+        # object/index overrides and URL rewrites can otherwise change the test.
+        essential = ("PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT",
+                     "SYSTEMDRIVE", "TEMP", "TMP", "TMPDIR", "LANG", "LC_ALL")
+        env = {key: os.environ[key] for key in essential if key in os.environ}
+        env.update({
+            "HOME": str(base / "home"), "USERPROFILE": str(base / "home"),
+            "XDG_CONFIG_HOME": str(base / "config"),
+            "APPDATA": str(base / "appdata"), "LOCALAPPDATA": str(base / "localappdata"),
+            "CODEX_HOME": str(base / "codex"),
+            "CLAUDE_CONFIG_DIR": str(base / "claude"),
+            "VSCODE_CONFIG_DIR": str(base / "vscode"),
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_SYSTEM": os.devnull,
+            "GIT_CONFIG_GLOBAL": os.devnull, "GIT_TERMINAL_PROMPT": "0",
+            "GIT_AUTHOR_NAME": "Release smoke", "GIT_COMMITTER_NAME": "Release smoke",
+            "GIT_AUTHOR_EMAIL": "release@example.invalid",
+            "GIT_COMMITTER_EMAIL": "release@example.invalid",
+            "_CAPTURE_SUBPROCESS": "1",
+        })
+        for name in ("home", "config", "appdata", "localappdata", "claude", "vscode"):
+            (base / name).mkdir()
+        failures = []
+        original_run = subprocess.run
+
+        def run(args, *a, **kw):
+            # Keep only operation names and status codes. Never include argv,
+            # stderr, paths, URLs, transcript text or raw exception messages.
+            operation = args[1] if args[0] == "git" and len(args) > 1 else "other"
+            known = {"init", "config", "add", "commit", "remote", "fetch",
+                     "rev-parse", "log", "show", "diff", "status", "read-tree",
+                     "write-tree", "commit-tree", "update-ref", "for-each-ref",
+                     "merge-base", "rm", "push", "ls-remote", "cat-file", "clone"}
+            operation = operation if operation in known else "other"
+            try:
+                result = original_run(args, *a, **kw)
+            except subprocess.TimeoutExpired:
+                failures.append({"operation": operation, "status": "timeout"})
+                raise
+            except OSError:
+                failures.append({"operation": operation, "status": "unavailable"})
+                raise
+            if result.returncode:
+                failures.append({"operation": operation, "returncode": result.returncode})
+            return result
+
+        with patch.dict(os.environ, env, clear=True), patch.object(subprocess, "run", run):
+            try:
+                return _smoke(base)
+            except (RuntimeError, ValueError, OSError, subprocess.TimeoutExpired) as error:
+                reasons = {"synthetic Git operation failed", "synthetic capture did not produce a snapshot",
+                           "second synthetic clone snapshot failed"}
+                reason = str(error) if isinstance(error, RuntimeError) and str(error) in reasons else "synthetic smoke failed"
+                raise RuntimeError(reason + "; diagnostics=" + json.dumps(
+                    {"git_failures": failures}, sort_keys=True)) from None
+
+
+def _smoke(base: Path) -> dict:
     """Exercise real capture/Git with two clones and a local-only bare remote."""
     from tests._capture import git_ops, orchestrator
     from tests._capture.agent_adapters.codex import CodexAdapter
@@ -217,62 +285,58 @@ def smoke() -> dict:
             raise RuntimeError("synthetic Git operation failed")
         return result.stdout.strip()
 
-    with tempfile.TemporaryDirectory(prefix="capture-release-") as directory:
-        base = Path(directory)
-        work, remote, second, home = [base / name for name in ("work", "remote.git", "second", "codex")]
-        work.mkdir()
-        (work / "src").mkdir()
-        (work / "tests").mkdir()
-        (work / "src/main.py").write_text("pass\n")
-        (work / "tests/.gitkeep").write_text("")
-        (work / "project-template-config.json").write_text('{"distribution_mode":"student","capture_enabled":true}')
-        git(work, "init", "-q", "-b", "main")
-        git(work, "config", "user.email", "release@example.invalid")
-        git(work, "config", "user.name", "Release smoke")
-        git(work, "add", ".")
-        git(work, "commit", "-qm", "synthetic baseline")
-        git(work, "remote", "add", "origin", str(remote))
-        (home / "sessions").mkdir(parents=True)
-        canary = "SYNTHETIC_OUTSIDE_PROJECT_CONTEXT_DO_NOT_ARCHIVE"
-        rows = [
-            {"type": "session_meta", "payload": {"id": "synthetic-release", "cwd": str(work)}},
-            {"type": "event_msg", "payload": {"type": "user_message", "message": "Explain a timeout."}},
-            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Explain a timeout."}]}},
-            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "A timeout can trigger retransmission."}]}},
-            {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "# AGENTS.md instructions for /outside/project\n" + canary}]}},
-        ]
-        (home / "sessions/rollout-release.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
-        env = {"CODEX_HOME": str(home), "_CAPTURE_SUBPROCESS": "1"}
-        with patch.dict(os.environ, env), patch.object(orchestrator, "installed_adapters", return_value=[CodexAdapter()]), patch.object(git_ops, "push_auto_track_background"):
-            os.environ.pop("CAPTURE_DISABLED", None)
-            first = orchestrator.take_snapshot(work, trigger="manual", pytest_session_id=None, force=True)
-            if not first:
-                raise RuntimeError("synthetic capture did not produce a snapshot")
-            report = build_report(work)
-            codex = report["adapters"].get("codex", {})
-            checks["prompts"] = codex.get("user_prompts") == 1
-            checks["assistant"] = codex.get("assistant_messages") == 1
-            paths = git(work, "ls-tree", "-r", "--name-only", first).splitlines()
-            checks["privacy"] = not any("/raw/" in p for p in paths) and not any(canary in git(work, "show", first + ":" + p) for p in paths if p.startswith(".ai-traces/"))
-            checks["health"] = ".ai-traces/capture-health.json" in paths
-            checks["offline_failure_visible"] = push_snapshot(work, first)["status"] == "failed"
-            git(base, "init", "--bare", "-q", str(remote))
-            git(base, "--git-dir=" + str(remote), "symbolic-ref", "HEAD", "refs/heads/main")
-            git(work, "push", "origin", "main")
-            checks["upload_confirmed"] = push_snapshot(work, first)["status"] == "confirmed"
-            git(base, "clone", "-q", str(remote), str(second))
-            git(second, "config", "user.email", "release@example.invalid")
-            git(second, "config", "user.name", "Release smoke")
-            next_sha = orchestrator.take_snapshot(second, trigger="manual", pytest_session_id=None, force=True)
-            if not next_sha:
-                log = second / ".test-runs.log"
-                detail = log.read_text(encoding="utf-8")[-1800:] if log.exists() else "no capture log"
-                raise RuntimeError("second synthetic clone snapshot failed: " + detail)
-            parents = git(second, "show", "-s", "--format=%P", next_sha).split() if next_sha else []
-            checks["second_clone_history"] = bool(parents) and parents[0] == first
-            archived = build_report(second)
-            checks["history_report"] = archived["adapters"].get("codex", {}).get("sessions") == 1 and archived["historical_sessions_not_in_current_stream"] == 1
-            checks["second_clone_upload"] = bool(next_sha) and push_snapshot(second, next_sha)["status"] == "confirmed"
+    work, remote, second, home = [base / name for name in ("work", "remote.git", "second", "codex")]
+    work.mkdir()
+    (work / "src").mkdir()
+    (work / "tests").mkdir()
+    (work / "src/main.py").write_text("pass\n")
+    (work / "tests/.gitkeep").write_text("")
+    (work / "project-template-config.json").write_text('{"distribution_mode":"student","capture_enabled":true}')
+    git(work, "init", "-q", "-b", "main")
+    git(work, "config", "user.email", "release@example.invalid")
+    git(work, "config", "user.name", "Release smoke")
+    git(work, "add", ".")
+    git(work, "commit", "-qm", "synthetic baseline")
+    git(work, "remote", "add", "origin", str(remote))
+    (home / "sessions").mkdir(parents=True)
+    canary = "SYNTHETIC_OUTSIDE_PROJECT_CONTEXT_DO_NOT_ARCHIVE"
+    rows = [
+        {"type": "session_meta", "payload": {"id": "synthetic-release", "cwd": str(work)}},
+        {"type": "event_msg", "payload": {"type": "user_message", "message": "Explain a timeout."}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Explain a timeout."}]}},
+        {"type": "response_item", "payload": {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "A timeout can trigger retransmission."}]}},
+        {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "# AGENTS.md instructions for /outside/project\n" + canary}]}},
+    ]
+    (home / "sessions/rollout-release.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    env = {"CODEX_HOME": str(home), "_CAPTURE_SUBPROCESS": "1"}
+    with patch.dict(os.environ, env), patch.object(orchestrator, "installed_adapters", return_value=[CodexAdapter()]), patch.object(git_ops, "push_auto_track_background"):
+        os.environ.pop("CAPTURE_DISABLED", None)
+        first = orchestrator.take_snapshot(work, trigger="manual", pytest_session_id=None, force=True)
+        if not first:
+            raise RuntimeError("synthetic capture did not produce a snapshot")
+        report = build_report(work)
+        codex = report["adapters"].get("codex", {})
+        checks["prompts"] = codex.get("user_prompts") == 1
+        checks["assistant"] = codex.get("assistant_messages") == 1
+        paths = git(work, "ls-tree", "-r", "--name-only", first).splitlines()
+        checks["privacy"] = not any("/raw/" in p for p in paths) and not any(canary in git(work, "show", first + ":" + p) for p in paths if p.startswith(".ai-traces/"))
+        checks["health"] = ".ai-traces/capture-health.json" in paths
+        checks["offline_failure_visible"] = push_snapshot(work, first)["status"] == "failed"
+        git(base, "init", "--bare", "-q", str(remote))
+        git(base, "--git-dir=" + str(remote), "symbolic-ref", "HEAD", "refs/heads/main")
+        git(work, "push", "origin", "main")
+        checks["upload_confirmed"] = push_snapshot(work, first)["status"] == "confirmed"
+        git(base, "clone", "-q", str(remote), str(second))
+        git(second, "config", "user.email", "release@example.invalid")
+        git(second, "config", "user.name", "Release smoke")
+        next_sha = orchestrator.take_snapshot(second, trigger="manual", pytest_session_id=None, force=True)
+        if not next_sha:
+            raise RuntimeError("second synthetic clone snapshot failed")
+        parents = git(second, "show", "-s", "--format=%P", next_sha).split() if next_sha else []
+        checks["second_clone_history"] = bool(parents) and parents[0] == first
+        archived = build_report(second)
+        checks["history_report"] = archived["adapters"].get("codex", {}).get("sessions") == 1 and archived["historical_sessions_not_in_current_stream"] == 1
+        checks["second_clone_upload"] = bool(next_sha) and push_snapshot(second, next_sha)["status"] == "confirmed"
     return {"ok": all(checks.values()), "checks": checks}
 
 

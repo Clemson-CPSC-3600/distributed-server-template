@@ -99,6 +99,7 @@ def test_release_verifier_rejects_changed_package(tmp_path):
     (root / 'a.py').write_text('changed\n')
     assert not verify(root)['ok']
 
+@pytest.mark.timeout(300)
 def test_release_smoke_checks_both_clones_and_offline_retry():
     from tools.capture_release import smoke
     report = smoke()
