@@ -3907,19 +3907,23 @@ def test_vscode_chat_session_content_is_withheld_not_committed(
 
 
 def test_unknown_adapter_transcript_fails_closed(repo):
-    """A future adapter nobody has measured degrades to withheld."""
+    """An unregistered namespace remains local and cannot name health keys."""
     path = (repo / ".ai-traces" / "some_new_tool" / "raw" / "sessions"
             / "s.jsonl")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(
         {"kind": "toolResult", "text": READ_SECRET}) + "\n", encoding="utf-8")
-    redaction.redact_traces(repo)
+    original = path.read_bytes()
+    report = redaction.redact_traces(repo)
     out_dir = (repo / ".ai-traces" / "some_new_tool"
                / redaction.REDACTED_SUBDIR)
     committed = "".join(p.read_text(encoding="utf-8")
                         for p in out_dir.rglob("*") if p.is_file())
     assert READ_SECRET not in committed
-    assert (out_dir / "sessions" / ("s.jsonl" + redaction.WITHHELD_SUFFIX)).exists()
+    assert report.errors == ["trace_namespace_invalid"]
+    assert not out_dir.exists()
+    assert path.read_bytes() == original
+    assert "some_new_tool" not in capture_health.build_health(repo, present_names=[])["adapters"]
 
 
 def test_recognized_vendor_transcripts_are_not_over_withheld(repo):

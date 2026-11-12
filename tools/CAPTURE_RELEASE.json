@@ -31,7 +31,7 @@
     ".cursor/hooks/session_start.py": "32303a27fcf11232fe826a28ab283108911de8bc5e483c57362068b81f3cdd25",
     ".cursor/hooks/stop.py": "c7e194b5bc0256cb09074244617ca5cf7f5628a3791e16b07b2e006746c36f66",
     ".githooks/post-commit": "09b09945295053a09bbe2904c3530f20afdd6f36945f4a037fe5f02d656d5406",
-    ".github/workflows/capture-release.yml": "927438486b606742c519eff95e1a9bcd3307108ada203bfc56facd2bac9c4764",
+    ".github/workflows/capture-release.yml": "c42a6127fc646e1bb86ddd64fa8fc7a7689a43bb6197f6de6e6df070c0b070d2",
     ".github/workflows/integrity.yml": "2b92259f828a25d8b5828c4fa9fe1cb14ae501e0f3f43e49668e5635a8540d45",
     ".gitignore": "7ce34c91aa0009e6516b5011cc2ebe3fc9e55629692505356e61eef1ef0ae13d",
     "AGENTS.md": "58cf96ea5c28e3352428d3825be13553db269752cabcc76c996675bebb055fc9",
@@ -104,7 +104,7 @@
     "tests/test_capture_post_commit_launcher.py": "33839a762ccd7623f6c6c6d6d9e5f1a0fd9c91e7d6d61295c40e31fa502d73b7",
     "tests/test_capture_preflight_auth.py": "5fb01cf05969c02bdf3ce066f6deeca2a566533c747b04a369976c0f13772598",
     "tests/test_capture_publication_guards.py": "624630ea097acdd756dec46e745548922a72600b84f465cf0707ab742ceb33ff",
-    "tests/test_capture_redaction.py": "e3c46bcc8bcc0b894bf49f1740a5c3eed2a5f4ca926e941b8360e4cebca98f9c",
+    "tests/test_capture_redaction.py": "a4eead8fa23bbffc594444fcd25342882d754f7135d4816c819a3aae32b363eb",
     "tests/test_capture_release_readiness.py": "ae5b804941f03f145aee37c1c2df021ba9d5cc28573411aa4fb417c0124af36b",
     "tests/test_capture_report_regressions.py": "eee827faf4e05810fa8bfdd59d433a59c4cd3f84f93a935188f2fc0214429abb",
     "tests/test_capture_runner_preservation.py": "300e0b91378bbb7978254df21ed2273b1f17b6e4539a3e6806ea4c6ea7ad76a6",
@@ -125,7 +125,7 @@
     "tests/test_codex_ingest.py": "fb2e6811b6ff622cddb2bd5da13c03e9265346cc30ee1e15f95e0891a6099a22",
     "tests/test_course_floor.py": "b9a530eb3657050e0d6049e706461e51bc7a541b8e7bf452c14ab48d416cf168",
     "tests/test_disclosure_retention_and_access.py": "839f7d18d08b9b4a85239ec3ca081bc17caf3c40eaf2962c0a3d47ca07559e7c",
-    "tests/test_force_paths_unstage_after.py": "35f6078be0bc6f1548c92ce98af498e5b0f6702bcfd3e1f3e32a06358d1ee967",
+    "tests/test_force_paths_unstage_after.py": "756e0f1b83e18c3473e04122f74371cf4c0c8beb5bd523734fd86af9357eec5b",
     "tests/test_orchestrator.py": "3ae7025fabd26568380cdba446e51cb1a327a65f77f8eb258ec8f17e773b2046",
     "tests/test_orchestrator_artifact_hashes.py": "6f550df17b9cc500b4883f63faf86a6fe0a20a60e78786e5fec3349225618d2b",
     "tests/test_orchestrator_cli.py": "09f42549cb54408a0bef8abb820219ba7f4a451d464fa1c4978c0f21c664c84b",
@@ -134,7 +134,7 @@
     "tests/test_post_commit_entry.py": "692480173a35b923f921c928a5e299464f933e807b342adbe4501a2ac99e1652",
     "tests/test_preflight.py": "0b018179c997c318141b89a6eb23bd9281ae2436c58ba60ca1cf25934747ab1a",
     "tests/test_private_work_capture_boundary.py": "1dfc7d9ba423612347fd5958d300ccbbdedffb3e0db1e8bb4deb1c207baf98a2",
-    "tests/test_process_tracking_claims.py": "bf77db453bcc6e939ac19110e8f5ff1907e64f051c108c22f6c6a68d8b835f32",
+    "tests/test_process_tracking_claims.py": "2533f805ecdde0fc714ec9ba3885c9e8ea59c260ac48d642f31f7efd65491767",
     "tests/test_runtime_triggers.py": "0f0111752e71230684fa986df80262d6d0c812dd5acc6ee0185f6e5490429cc1",
     "tests/test_sitecustomize_payload.py": "a074ff35684431d8f36d468cfbbcc9afc94beae19015e1aabcbd4378f424c34e",
     "tests/test_verify_integrity_mode.py": "7e74eeb177c6d4542b4bfc0d2ae19fa0c6cc66080cba86a4be2502cef1fb8f19",
@@ -146,6 +146,6 @@
     "tools/validate_student_repo.py": "106679a7ef96c3a7113026c3e9119532703d6350bcd609acc976cd5059dbeb29",
     "tools/verify_integrity.py": "dd0864007deecbca278bfb724d14c005444e28fdefcc55fd8f04948b1e6414ef"
   },
-  "package_sha256": "a9bbcb78ebb7428e48530624d0f526f57a5ad2baf0a0dc0eeb612316ffc8a4f2",
+  "package_sha256": "3f91a33e4abbbbbe9767ccd403365b8b780b2c199c2863508d302d7bac2fdda2",
   "schema_version": 1
 }

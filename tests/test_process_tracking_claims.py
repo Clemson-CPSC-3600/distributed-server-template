@@ -126,10 +126,12 @@ def test_gitignore_claim_reflects_force_paths_exception():
     assert forced, "aider adapter no longer force-stages anything -- re-check this test"
     gitignore_text = (_ROOT / ".gitignore").read_text(encoding="utf-8")
     assert ".aider*" in gitignore_text
-    assert all(fnmatch.fnmatch(name, ".aider*") for name in forced), (
-        "aider's force-staged filenames no longer match the .gitignore "
-        "pattern that is supposed to cover them"
-    )
+    # Raw originals are ignored then excluded; the common trace root is
+    # force-staged so sanitized derivatives survive even with Aider alone.
+    raw = {".aider.chat.history.md", ".aider.input.history"}
+    assert raw <= set(forced)
+    assert all(fnmatch.fnmatch(name, ".aider*") for name in raw)
+    assert set(forced) == raw | {".ai-traces"}
 
     text = _doc_text()
     assert "you are not submitting them, so they are not captured" not in text
