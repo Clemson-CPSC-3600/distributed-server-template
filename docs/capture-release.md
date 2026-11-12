@@ -66,7 +66,14 @@ records, unknown adapters, unsafe aliases, and payload-bearing heartbeat records
 closed. Health files are written atomically and staged only after a successful write.
 Sanitized Aider evidence is retained even when every other adapter is disabled.
 Focused bundle diagnostics preserve the last full-suite result and provide
-project-relative failure rerun commands.
+project-relative failure rerun commands. Publication validation rejects credential
+files and compares all starter files against template/. Both generators seed src/
+from template/ automatically and omit bytecode/cache files. Doctor also requires
+affirmative health inside the exact latest snapshot; stale local health alone
+cannot establish success. Git commit hooks select the project virtual-environment
+interpreter directly, including Windows Scripts/, and fall back to python3/python
+when no project environment exists. An unavailable interpreter is reported without
+blocking the commit.
 
 Hang-watchdog snapshots bypass sanitization and therefore omit AI traces before
 staging. They retain code and hang-status evidence; earlier safe conversations

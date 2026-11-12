@@ -4,9 +4,47 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 
 from tests._capture import git_ops, runtime_triggers, upload
+
+
+def _snapshot_health(repo: Path, tip: str | None) -> dict | None:
+    """Read structured health from the exact snapshot, never from local cache."""
+    if not tip:
+        return None
+    try:
+        path = ".ai-traces/capture-health.json"
+        entry = git_ops.run_git(["ls-tree", tip, "--", path], repo, timeout=30.0)
+        fields = entry.stdout.split()
+        if entry.returncode or len(fields) != 4 or fields[:2] not in (
+                ["100644", "blob"], ["100755", "blob"]):
+            return None
+        result = git_ops.run_git(["cat-file", "blob", fields[2]], repo, timeout=30.0)
+        if result.returncode:
+            return None
+        health = json.loads(result.stdout)
+        if not isinstance(health, dict) or health.get("schema_version") != "1":
+            return None
+        return health
+    except (OSError, UnicodeError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def _snapshot_health_affirmative(health: dict) -> bool:
+    package = health.get("capture_package")
+    if (health.get("redaction_ok") is not True
+            or health.get("snapshot_ok") is not True
+            or not isinstance(package, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", package)):
+        return False
+    adapters = health.get("adapters", {})
+    if not isinstance(adapters, dict):
+        return False
+    return all(isinstance(entry, dict)
+               and isinstance(entry.get("errors", []), list)
+               and not entry.get("errors") for entry in adapters.values())
 
 
 def build_report(repo: Path) -> dict:
@@ -33,6 +71,13 @@ def build_report(repo: Path) -> dict:
         errors.append("upload_origin_missing")
     tip = git_ops.read_auto_track_tip(repo) if is_git else None
     receipt = upload.read_receipt(repo, tip)
+    snapshot_health = _snapshot_health(repo, tip)
+    if snapshot_health is None:
+        errors.append("snapshot_health_unknown")
+    elif not _snapshot_health_affirmative(snapshot_health):
+        errors.append("snapshot_health_not_affirmative")
+    # Keep local checks too: a failed new attempt must remain visible even
+    # when the last successfully uploaded snapshot has healthy metadata.
     health_path = repo / ".ai-traces/capture-health.json"
     try:
         health = json.loads(health_path.read_text(encoding="utf-8"))
@@ -77,6 +122,7 @@ def build_report(repo: Path) -> dict:
             "origin_configured": origin_configured,
             "local_snapshot": tip, "upload": receipt,
             "health_record_present": health_present,
+            "snapshot_health_record_present": snapshot_health is not None,
             "capture_package": package,
             "adapters": summaries, "warnings": warnings,
             "bootstrap": runtime_triggers.installation_state(repo), "errors": errors}

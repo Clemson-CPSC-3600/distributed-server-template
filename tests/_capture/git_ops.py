@@ -228,19 +228,19 @@ def fetch_auto_track(repo: Path) -> Optional[str]:
     # this, a remote-side deletion would leave the prior local ref untouched —
     # git fetch exits non-zero on a missing remote ref but does not clear the
     # destination. See spec §6 step 4.
-    run_git(["update-ref", "-d", AUTO_TRACK_ORIGIN_TIP_REF], cwd=repo, timeout=30.0)
+    run_git(["update-ref", "-d", AUTO_TRACK_ORIGIN_TIP_REF], cwd=repo, timeout=5.0)
 
     refspec = f"+refs/heads/auto-track:{AUTO_TRACK_ORIGIN_TIP_REF}"
     result = run_git(
         ["fetch", "--no-tags", "--force", "--no-write-fetch-head",
          "origin", refspec],
-        cwd=repo, timeout=30.0,
+        cwd=repo, timeout=5.0,
     )
     if result.returncode != 0:
         return None
     # Read the just-fetched ref to confirm presence
     rev = run_git(["rev-parse", "--verify", AUTO_TRACK_ORIGIN_TIP_REF],
-                  cwd=repo, timeout=30.0)
+                  cwd=repo, timeout=5.0)
     if rev.returncode != 0:
         return None
     return rev.stdout.strip()

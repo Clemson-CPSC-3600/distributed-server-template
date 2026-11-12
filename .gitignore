@@ -263,3 +263,9 @@ autograder.zip
 # chat/input history files are still captured into auto-track snapshots via
 # the aider adapter's force_paths() -- see tests/_capture/agent_adapters/aider.py.
 .aider*
+
+# Preserve course-project runtime output exclusions. Golden reference logs
+# under crc_support/correct_logs/ remain tracked.
+Logs/
+src/Logs/
+crc_support/Logs/

@@ -5,4 +5,30 @@
 #
 # This hook fires only inside this repo because core.hooksPath is set
 # with --local (see tests/_capture/runtime_triggers.py).
-exec python -m tests._capture.post_commit_entry || true
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+
+# Git GUI applications and fresh terminal windows need not have the venv
+# activated. Prefer its interpreter explicitly on both supported layouts.
+py=""
+for venv in venv .venv; do
+    for candidate in "$root/$venv/bin/python" "$root/$venv/Scripts/python.exe"; do
+        if [ -x "$candidate" ]; then
+            py="$candidate"
+            break 2
+        fi
+    done
+done
+if [ -z "$py" ]; then
+    py=$(command -v python3 || command -v python || true)
+fi
+if [ -z "$py" ]; then
+    echo "Activity capture unavailable: set up the project environment and run tests." >&2
+    exit 0
+fi
+
+# This process is already the explicit capture trigger; suppress a second
+# sitecustomize exit trigger without disabling the requested snapshot.
+export _CAPTURE_SUBPROCESS=1
+"$py" -m tests._capture.post_commit_entry || true
+exit 0

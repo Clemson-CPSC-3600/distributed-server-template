@@ -1,6 +1,6 @@
 """Python entry point invoked by .githooks/post-commit.
 
-Kept thin so the shell hook is a one-liner and the orchestration
+Kept thin so the shell hook only selects an interpreter and orchestration
 logic lives here, where it can be unit-tested. Always returns 0:
 a misbehaving hook must not block a student's commit.
 """
