@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional
 
+from tests._capture import ai_traces
 from tests._capture.agent_adapters.base import AdapterMetadata, IngestResult
 
 CHAT_HISTORY = ".aider.chat.history.md"
@@ -29,10 +30,9 @@ class AiderAdapter:
     in place where the orchestrator expects them (the "freebie" case)."""
 
     name = "aider"
-    # Aider writes straight into the repo root -- there is no dedicated
-    # trace subdirectory to declare here (contrast Codex/Claude's
-    # `.ai-traces`).
-    transcripts_dir = ""
+    # Originals live at the root; the sanitizer writes the archived evidence
+    # into the common trace directory, independently of any other adapter.
+    transcripts_dir = ai_traces.AI_TRACES_DIR
 
     def is_present(self) -> bool:
         # No reliable machine-wide signal (aider has no persistent daemon
@@ -51,6 +51,7 @@ class AiderAdapter:
             ]
             if not present:
                 return IngestResult(adapter_name=self.name)
+            ai_traces.ensure_attestation(repo)
             # No rollouts_skipped here, deliberately: aider writes its
             # histories INTO the repo, so there is no copy step and hence
             # no "matched but already current" population. Every present
@@ -70,10 +71,10 @@ class AiderAdapter:
         return None
 
     def stage_paths(self) -> List[str]:
-        return [CHAT_HISTORY, INPUT_HISTORY]
+        return [CHAT_HISTORY, INPUT_HISTORY, self.transcripts_dir]
 
     def force_paths(self) -> List[str]:
-        return [CHAT_HISTORY, INPUT_HISTORY]
+        return [CHAT_HISTORY, INPUT_HISTORY, self.transcripts_dir]
 
     def unstage_after(self) -> List[str]:
         # The originals are force-STAGED (so gitignoring them cannot hide

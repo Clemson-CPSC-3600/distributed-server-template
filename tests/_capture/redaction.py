@@ -5686,6 +5686,78 @@ def _audit_derivative_outputs(root: Path, cache: RedactionCache) -> None:
     visit(root)
 
 
+def _audit_trace_namespace(repo: Path, cache: Optional[RedactionCache] = None) -> List[Path]:
+    """Every staged trace path has an explicit processing rule.
+
+    Unknown files are retained locally, but fail the pass. In particular a
+    recognized directory name never grants blanket trust to its contents.
+    """
+    root = repo / ai_traces.AI_TRACES_DIR
+
+    def entries(directory: Path) -> List[Path]:
+        _output_stat(directory / ".capture-output-probe", repo)
+        return sorted(directory.iterdir())
+
+    def regular(path: Path) -> None:
+        if _output_stat(path, repo) is None:
+            raise ValueError("trace_namespace_invalid")
+
+    def regular_tree(directory: Path) -> None:
+        for path in entries(directory):
+            state = path.lstat()
+            if stat.S_ISDIR(state.st_mode) and not (getattr(state, "st_file_attributes", 0) & 0x400):
+                regular_tree(path)
+            else:
+                regular(path)
+
+    try:
+        children = entries(root)
+    except FileNotFoundError:
+        return []
+    adapters = []
+    for child in children:
+        if child.name in {"external-attestation.txt", "capture-health.json", "interaction-stream.jsonl"}:
+            regular(child)
+            if child.name == "interaction-stream.jsonl" and cache is not None:
+                if not cache.is_fresh(cache._key(child), child, [], verify_content=True):
+                    raise ValueError("trace_namespace_unattested")
+            continue
+        if child.name not in ai_traces.SUPPORTED_ADAPTERS:
+            raise ValueError("trace_namespace_invalid")
+        adapters.append(child)
+        for tier in entries(child):
+            if tier.name in {RAW_SUBDIR, REDACTED_SUBDIR}:
+                regular_tree(tier)
+            elif tier.name == "normalized":
+                for path in entries(tier):
+                    if not path.name.endswith(".jsonl"):
+                        raise ValueError("trace_namespace_invalid")
+                    regular(path)
+                    if cache is not None and not cache.is_fresh(
+                            cache._key(path), path, [], verify_content=True):
+                        raise ValueError("trace_namespace_unattested")
+            elif tier.name == "heartbeat":
+                for path in entries(tier):
+                    regular(path)
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    if (not isinstance(data, dict)
+                            or set(data) != {"adapter_name", "schema_version", "session_id"}
+                            or data.get("adapter_name") != child.name
+                            or data.get("schema_version") != "1"
+                            or not isinstance(data.get("session_id"), str)
+                            or not re.fullmatch(r"[\w.-]{1,80}", data["session_id"])
+                            or path.name != data["session_id"] + ".json"):
+                        raise ValueError("trace_namespace_invalid")
+                    # Canonical output also removes duplicate JSON key spellings.
+                    _write_staged_output(path, json.dumps(data, sort_keys=True, indent=2) + "\n", repo)
+            elif tier.name == "metadata" and not entries(tier):
+                # No production writer currently defines a metadata schema.
+                continue
+            else:
+                raise ValueError("trace_namespace_invalid")
+    return adapters
+
+
 def redact_traces(repo: Path) -> RedactionReport:
     """Produce the committed, redacted derivative of every captured trace.
 
@@ -5708,12 +5780,10 @@ def redact_traces(repo: Path) -> RedactionReport:
         return report
     _sweep_temp_files(root)
     try:
-        adapter_dirs = sorted(p for p in root.iterdir() if p.is_dir())
-    except FileNotFoundError:
-        adapter_dirs = []
-    except OSError:
-        adapter_dirs = []
-        report.errors.append("derivative_output_invalid")
+        adapter_dirs = _audit_trace_namespace(repo)
+    except (OSError, ValueError, UnicodeError):
+        report.errors.append("trace_namespace_invalid")
+        return report
 
     for adapter_dir in adapter_dirs:
         raw_root = adapter_dir / RAW_SUBDIR
@@ -5723,6 +5793,7 @@ def redact_traces(repo: Path) -> RedactionReport:
                 sources = sorted(p for p in raw_root.rglob("*") if p.is_file())
             except OSError:
                 sources = []
+                report.errors.append("trace_input_unavailable")
             for src in sources:
                 try:
                     rel = src.relative_to(raw_root)
@@ -5758,6 +5829,10 @@ def redact_traces(repo: Path) -> RedactionReport:
                 report.errors.append(f"{name}: {type(e).__name__}: {e}")
     # All redacted files are force-staged, including leftovers whose raw
     # source disappeared and files no current adapter input produced.
+    try:
+        adapter_dirs = _audit_trace_namespace(repo, cache if not report.errors else None)
+    except (OSError, ValueError, UnicodeError):
+        report.errors.append("trace_namespace_invalid")
     for adapter_dir in adapter_dirs:
         output_root = adapter_dir / REDACTED_SUBDIR
         try:
@@ -5786,9 +5861,10 @@ def raw_unstage_paths(repo: Path) -> List[str]:
     try:
         for adapter_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             raw_root = adapter_dir / RAW_SUBDIR
-            if raw_root.is_dir():
-                out.append(
-                    f"{ai_traces.AI_TRACES_DIR}/{adapter_dir.name}/{RAW_SUBDIR}")
+            # Exclude this namespace even when its leaf is a regular file,
+            # broken symlink, special node, or currently absent.
+            out.append(
+                f"{ai_traces.AI_TRACES_DIR}/{adapter_dir.name}/{RAW_SUBDIR}")
     except OSError:
         return []
     return out

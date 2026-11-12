@@ -22,7 +22,7 @@ GIT_ENV = {
 }
 
 
-def run_git(args: List[str], cwd: Path, timeout: float = 15.0,
+def run_git(args: List[str], cwd: Path, timeout: float = 30.0,
             capture: bool = True) -> subprocess.CompletedProcess:
     """Run a git command with our safe env. Never raises on non-zero exit.
 
@@ -61,7 +61,7 @@ def push_auto_track_background(repo: Path, log_path: Path) -> None:
     branch — the local ref is never checked out.
     """
     env = {**os.environ, **GIT_ENV, "_CAPTURE_SUBPROCESS": "1"}
-    if run_git(["remote", "get-url", "origin"], cwd=repo, timeout=5.0).returncode != 0:
+    if run_git(["remote", "get-url", "origin"], cwd=repo, timeout=30.0).returncode != 0:
         return
     sha = read_auto_track_tip(repo)
     if not sha:
@@ -101,7 +101,7 @@ def push_auto_track_background(repo: Path, log_path: Path) -> None:
 
 def is_git_repo(path: Path) -> bool:
     """True iff path is inside a git working tree."""
-    result = run_git(["rev-parse", "--is-inside-work-tree"], cwd=path, timeout=5.0)
+    result = run_git(["rev-parse", "--is-inside-work-tree"], cwd=path, timeout=30.0)
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
@@ -128,7 +128,7 @@ def diff_stats_trees(repo: Path, prev_tree: str, new_tree: str) -> DiffStats:
 
 def current_head_sha(repo: Path) -> Optional[str]:
     """Returns HEAD sha or None if unavailable."""
-    result = run_git(["rev-parse", "HEAD"], cwd=repo, timeout=5.0)
+    result = run_git(["rev-parse", "HEAD"], cwd=repo, timeout=30.0)
     if result.returncode == 0:
         return result.stdout.strip()
     return None
@@ -142,7 +142,7 @@ EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 def read_auto_track_tip(repo: Path) -> Optional[str]:
     """Returns the SHA of refs/auto-track/snapshots if the ref exists, else None."""
     result = run_git(["rev-parse", "--verify", AUTO_TRACK_REF],
-                     cwd=repo, timeout=5.0)
+                     cwd=repo, timeout=30.0)
     if result.returncode != 0:
         return None
     return result.stdout.strip()
@@ -168,7 +168,7 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     """
     local = read_auto_track_tip(repo)
     origin_result = run_git(["rev-parse", "--verify", AUTO_TRACK_ORIGIN_TIP_REF],
-                            cwd=repo, timeout=5.0)
+                            cwd=repo, timeout=30.0)
     origin = origin_result.stdout.strip() if origin_result.returncode == 0 else None
 
     if local is None and origin is None:
@@ -182,12 +182,12 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     # Both exist and differ — check ancestry
     local_in_origin = run_git(
         ["merge-base", "--is-ancestor", local, origin],
-        cwd=repo, timeout=5.0).returncode == 0
+        cwd=repo, timeout=30.0).returncode == 0
     if local_in_origin:
         return origin  # origin is ahead
     origin_in_local = run_git(
         ["merge-base", "--is-ancestor", origin, local],
-        cwd=repo, timeout=5.0).returncode == 0
+        cwd=repo, timeout=30.0).returncode == 0
     if origin_in_local:
         return local  # local is ahead
 
@@ -195,13 +195,13 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     # Record the dropped commits so the mirror can audit later.
     dropped = run_git(
         ["rev-list", f"{origin}..{local}"],
-        cwd=repo, timeout=5.0,
+        cwd=repo, timeout=30.0,
     )
     dropped_shas = dropped.stdout.split() if dropped.returncode == 0 else []
     # Keep the offline fork reachable before reconciling with the remote.
     # The next snapshot also parents it, so the remote archive retains it.
     saved = run_git(["update-ref", f"refs/auto-track/recovered/{local}", local],
-                    cwd=repo, timeout=5.0)
+                    cwd=repo, timeout=30.0)
     if saved.returncode != 0:
         return local
     try:
@@ -216,7 +216,7 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     except OSError:
         pass
     run_git(["update-ref", AUTO_TRACK_REF, origin, local],
-            cwd=repo, timeout=5.0)
+            cwd=repo, timeout=30.0)
     return origin
 
 
@@ -228,19 +228,19 @@ def fetch_auto_track(repo: Path) -> Optional[str]:
     # this, a remote-side deletion would leave the prior local ref untouched —
     # git fetch exits non-zero on a missing remote ref but does not clear the
     # destination. See spec §6 step 4.
-    run_git(["update-ref", "-d", AUTO_TRACK_ORIGIN_TIP_REF], cwd=repo, timeout=5.0)
+    run_git(["update-ref", "-d", AUTO_TRACK_ORIGIN_TIP_REF], cwd=repo, timeout=30.0)
 
     refspec = f"+refs/heads/auto-track:{AUTO_TRACK_ORIGIN_TIP_REF}"
     result = run_git(
         ["fetch", "--no-tags", "--force", "--no-write-fetch-head",
          "origin", refspec],
-        cwd=repo, timeout=5.0,
+        cwd=repo, timeout=30.0,
     )
     if result.returncode != 0:
         return None
     # Read the just-fetched ref to confirm presence
     rev = run_git(["rev-parse", "--verify", AUTO_TRACK_ORIGIN_TIP_REF],
-                  cwd=repo, timeout=5.0)
+                  cwd=repo, timeout=30.0)
     if rev.returncode != 0:
         return None
     return rev.stdout.strip()
@@ -265,13 +265,13 @@ def detect_git_state(repo: Path) -> str:
 def current_head_info(repo: Path) -> Tuple[str, Optional[str]]:
     """Returns (ref_name_or_'detached', sha_or_None_for_unborn)."""
     ref_result = run_git(["symbolic-ref", "--short", "HEAD"],
-                         cwd=repo, timeout=5.0)
+                         cwd=repo, timeout=30.0)
     if ref_result.returncode == 0:
         ref = ref_result.stdout.strip()
     else:
         ref = "detached"
     sha_result = run_git(["rev-parse", "--verify", "HEAD"],
-                         cwd=repo, timeout=5.0)
+                         cwd=repo, timeout=30.0)
     sha = sha_result.stdout.strip() if sha_result.returncode == 0 else None
     return ref, sha
 
@@ -321,7 +321,7 @@ def snapshot_to_auto_track(
         expected_old = local_tip if local_tip else "0" * 40
         update_result = run_git(
             ["update-ref", AUTO_TRACK_REF, new_sha, expected_old],
-            cwd=repo, timeout=5.0,
+            cwd=repo, timeout=30.0,
         )
         if update_result.returncode == 0:
             return new_sha
@@ -504,14 +504,14 @@ def _build_and_commit(
         if second_parent:
             commit_args += ["-p", second_parent]
         recovered = run_git(["for-each-ref", "--format=%(objectname)",
-                             "refs/auto-track/recovered/"], cwd=repo, timeout=5.0)
+                             "refs/auto-track/recovered/"], cwd=repo, timeout=30.0)
         if recovered.returncode != 0:
             return None
         for parent in recovered.stdout.split() if recovered.returncode == 0 else []:
             if parent in {first_parent, second_parent}:
                 continue
             if first_parent and run_git(["merge-base", "--is-ancestor", parent, first_parent],
-                                        cwd=repo, timeout=5.0).returncode == 0:
+                                        cwd=repo, timeout=30.0).returncode == 0:
                 continue
             commit_args += ["-p", parent]
         commit_args += ["-F", "-"]

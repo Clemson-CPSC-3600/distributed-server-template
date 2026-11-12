@@ -42,7 +42,9 @@ absent from the newest tree. It emits no student text, session identifiers,
 commands or transcript paths. Snapshot counts exclude ordinary starter/main commits; archive scan counts
 include the complete reachable history. Malformed structured rows are counted
 and skipped while other records remain available. Missing prompts alongside assistant replies are
-reported as incomplete coverage. Files disappearing from a later working-tree
+reported as incomplete coverage. Prompt counts describe captured event observations;
+hook and rollout observations can describe the same exchange and must not be
+interpreted as a count of distinct student requests. Files disappearing from a later working-tree
 snapshot do not mean older evidence was destroyed.
 When two checkouts create divergent offline histories, recovery keeps the local
 fork reachable and includes it as an additional parent of the next snapshot.
@@ -59,7 +61,12 @@ derivatives and withholding markers also require matching content hashes; size
 and timestamps alone never attest staged output. Unexpected or unverifiable
 derivative files fail closed, including leftovers whose raw source is gone.
 Required output reads, writes and removals must succeed before the pass is
-reported healthy.
+reported healthy. Trace namespaces are explicit: unexpected files, nested normalized
+records, unknown adapters, unsafe aliases, and payload-bearing heartbeat records fail
+closed. Health files are written atomically and staged only after a successful write.
+Sanitized Aider evidence is retained even when every other adapter is disabled.
+Focused bundle diagnostics preserve the last full-suite result and provide
+project-relative failure rerun commands.
 
 Hang-watchdog snapshots bypass sanitization and therefore omit AI traces before
 staging. They retain code and hang-status evidence; earlier safe conversations

@@ -139,7 +139,10 @@ def take_snapshot(
             # Capture-health manifest. Written BEFORE preview_tree so it is
             # part of the snapshot tree. Its content is deliberately stable
             # run-to-run (see capture_health) so tree-SHA dedupe survives.
-            _write_health_manifest(repo, installed, adapter_results, redaction_ok=redaction_ok)
+            health_written = _write_health_manifest(repo, installed, adapter_results, redaction_ok=redaction_ok)
+            if not health_written:
+                redaction_ok = False
+                _log(repo, "orchestrator: health manifest unavailable")
 
             head_ref, head_sha = git_ops.current_head_info(repo)
             git_state = git_ops.detect_git_state(repo)
@@ -158,6 +161,8 @@ def take_snapshot(
             # preview and silently disable tree-SHA dedupe.
             force_set: set = set()
             unstage_set: set = set()
+            if health_written:
+                force_set.add(capture_health.HEALTH_FILE)
             for adapter in installed:
                 try:
                     fp = getattr(adapter, "force_paths", lambda: [])()
@@ -192,10 +197,10 @@ def take_snapshot(
                                 or path.startswith(".claude-transcripts"))
                 existing = [path for path in existing if safe_path(path)]
                 force_set = {path for path in force_set if safe_path(path)}
-                if (repo / capture_health.HEALTH_FILE).is_file():
+                health_written = _write_health_manifest(repo, installed, adapter_results, redaction_ok=False)
+                if health_written:
                     existing.append(capture_health.HEALTH_FILE)
                     force_set.add(capture_health.HEALTH_FILE)
-                _write_health_manifest(repo, installed, adapter_results, redaction_ok=False)
 
             new_tree = git_ops.preview_tree(
                 repo, existing,
@@ -306,7 +311,7 @@ def _write_health_manifest(
     *,
     redaction_ok: bool = True,
     snapshot_ok: bool = True,
-) -> None:
+) -> bool:
     """Refresh `.ai-traces/capture-health.json`. Never raises."""
     try:
         errors_by_adapter: dict = {}
@@ -328,9 +333,10 @@ def _write_health_manifest(
             health["capture_package"] = digest if isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) else "unknown"
         except (OSError, ValueError, AttributeError):
             health["capture_package"] = "unknown"
-        capture_health.write_health(repo, health)
+        return capture_health.write_health(repo, health) is not None
     except Exception as e:
         _log(repo, f"orchestrator: health manifest failed: {e}")
+        return False
 
 
 def _capture_counts(adapter_results: List[IngestResult]) -> dict:

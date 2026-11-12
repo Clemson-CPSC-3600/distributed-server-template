@@ -277,9 +277,14 @@ def _run_pytest_in(work: Path) -> subprocess.CompletedProcess:
     no-op assert; anything beyond a few seconds means the watchdog or push
     machinery is hung.
     """
+    # This is one deliberate inner invocation, not another copy of the
+    # outer gate's xdist workers/selection/report flags. Inheriting -n makes
+    # the tiny fixture spawn competing capture sessions and watchdogs.
+    env = dict(os.environ)
+    env.pop("PYTEST_ADDOPTS", None)
     return subprocess.run(
         [sys.executable, "-m", "pytest", "tests/test_x.py", "-q"],
-        cwd=work, capture_output=True, text=True, timeout=120,
+        cwd=work, env=env, capture_output=True, text=True, timeout=120,
     )
 
 

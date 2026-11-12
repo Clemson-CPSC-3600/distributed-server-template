@@ -61,7 +61,8 @@ def traced_adapter_names(repo: Path) -> List[str]:
     """
     root = repo / ai_traces.AI_TRACES_DIR
     try:
-        return sorted(p.name for p in root.iterdir() if p.is_dir())
+        return sorted(p.name for p in root.iterdir()
+                      if p.name in ai_traces.SUPPORTED_ADAPTERS and p.is_dir())
     except OSError:
         return []
 
@@ -141,7 +142,7 @@ def build_health(
         | present
         | set(errors_by_adapter)
         | set(traced_adapter_names(repo))
-    )
+    ) & ai_traces.SUPPORTED_ADAPTERS
 
     adapters: Dict[str, Any] = {}
     for name in sorted(names):
@@ -205,12 +206,16 @@ def write_health(repo: Path, health: Dict[str, Any]) -> Optional[Path]:
     path = repo / HEALTH_FILE
     payload = serialize(health)
     try:
+        # A health-write failure must never leave unverified old bytes staged,
+        # and aliases must not redirect writes outside the project.
+        from tests._capture.redaction import _output_stat, _write_staged_output
+        _output_stat(path, repo)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists() and path.read_text(encoding="utf-8") == payload:
             return path
-        path.write_text(payload, encoding="utf-8", newline="\n")
+        _write_staged_output(path, payload, repo)
         return path
-    except OSError:
+    except (OSError, ValueError):
         return None
 
 

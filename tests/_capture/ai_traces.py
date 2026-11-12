@@ -15,6 +15,7 @@ from typing import Any, Iterable, List, Mapping, Optional
 
 
 AI_TRACES_DIR = ".ai-traces"
+SUPPORTED_ADAPTERS = frozenset({"codex", "claude", "cursor", "vscode_chat", "aider"})
 INTERACTION_STREAM = f"{AI_TRACES_DIR}/interaction-stream.jsonl"
 ATTESTATION_FILE = f"{AI_TRACES_DIR}/external-attestation.txt"
 
