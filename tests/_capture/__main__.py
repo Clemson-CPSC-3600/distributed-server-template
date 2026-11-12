@@ -18,6 +18,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -39,13 +40,29 @@ def _build_parser() -> argparse.ArgumentParser:
         "--reason", default=None,
         help="Free-form reason; recorded in the snapshot commit body.",
     )
+    for name, help_text in (("doctor", "Read local capture and last upload status."),
+                            ("report", "Count events across the full snapshot history.")):
+        command = sub.add_parser(name, help=help_text)
+        command.add_argument("--json", action="store_true", help="Emit structured metadata only.")
+        command.add_argument("--repo", type=Path, help="Project or bare instructor-mirror directory.")
+        if name == "report":
+            command.add_argument("--ref", help="Snapshot ref, including a refs/students/... mirror ref.")
     return parser
 
 
 def main(argv: Optional[List[str]] = None, cwd: Optional[Path] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    repo = Path(cwd) if cwd is not None else Path.cwd()
+    repo = getattr(args, "repo", None) or (Path(cwd) if cwd is not None else Path.cwd())
+
+    if args.cmd in {"doctor", "report"}:
+        if args.cmd == "doctor":
+            from tests._capture.doctor import build_report
+        else:
+            from tests._capture.report import build_report
+        result = build_report(repo, ref=args.ref) if args.cmd == "report" else build_report(repo)
+        sys.stdout.write(json.dumps(result, sort_keys=True, indent=2) + "\n")
+        return 0 if args.cmd == "report" or result["ok"] else 1
 
     if args.cmd == "snapshot":
         sha = orchestrator.take_snapshot(

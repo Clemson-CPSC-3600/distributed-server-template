@@ -26,8 +26,16 @@ jobs:
       - name: Verify capture-layer files unchanged
         id: integrity
         continue-on-error: true
+        # Only the exact authoring repository uses instructor layout. Every
+        # distributed copy, fork and unknown repository forces shipped student
+        # paths regardless of editable project configuration. GITHUB_REPOSITORY
+        # is GitHub's repository identity, not a value read from course files.
         run: |
-          if python tools/verify_integrity.py > integrity.out 2>&1; then
+          mode_args=(--mode student)
+          case "${GITHUB_REPOSITORY:-}" in
+            clemson-teaching/python-class-project-starter) mode_args=() ;;
+          esac
+          if python tools/verify_integrity.py "${mode_args[@]}" > integrity.out 2>&1; then
             echo "status=clean" >> "$GITHUB_OUTPUT"
             cat integrity.out
           else

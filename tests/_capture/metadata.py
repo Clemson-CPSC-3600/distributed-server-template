@@ -14,6 +14,25 @@ from typing import Dict, List, Optional
 
 from tests._capture import CAPTURE_VERSION
 
+# Canonical trigger names a snapshot's `trigger:` commit-message line can
+# take, keyed to where each one is actually produced. This is documentation
+# scaffolding only (nothing here reads it at runtime) -- it exists so
+# PROCESS_TRACKING.md's "when capture fires" claims can be checked against
+# real call sites in a test (see tests/test_process_tracking_claims.py)
+# instead of being retyped from memory and silently drifting when a call
+# site's literal changes. `manual` covers every CLI-seam invocation,
+# including the Codex, Claude Code and Cursor stop hooks, which attach their own
+# distinguishing string as a separate `manual_reason:` line rather than as
+# the trigger itself -- see tests/_capture/__main__.py.
+TRIGGERS = {
+    "pytest": "tests/conftest.py (pytest_sessionfinish -> capture.session_finish)",
+    "sitecustomize": "tests/_capture/sitecustomize_payload.py (atexit hook)",
+    "git_post_commit": "tests/_capture/post_commit_entry.py",
+    "manual": "tests/_capture/__main__.py (python -m tests._capture snapshot; "
+              "also the Codex/Claude/Cursor stop hooks, via manual_reason=)",
+    "pytest_watchdog": "tests/_capture/watchdog.py (session hang killer)",
+}
+
 
 @dataclass
 class TestResult:
@@ -30,8 +49,14 @@ class TestResult:
 def hostname_hash(project_path: str) -> str:
     """First 16 hex chars of sha256(hostname + project_path).
 
-    Deterministic per machine per project. Not recoverable to hostname.
-    64 bits of distinctness: collision-free at any realistic class scale.
+    Deterministic per machine per project. 64 bits of distinctness:
+    collision-free at any realistic class scale.
+
+    Not a privacy guarantee. The input is unsalted, so this does not hide a
+    hostname from anyone who can guess it: a candidate hostname can be
+    hashed and compared against this value to confirm the guess. Treat it as
+    a stable per-machine identifier, not as an anonymizer -- PROCESS_TRACKING.md
+    discloses it to students on exactly those terms.
     """
     try:
         host = socket.gethostname()
@@ -83,6 +108,7 @@ def format_commit_message(
     agent_name: str = "none",
     agent_session_id: str = "none",
     artifact_hashes: Optional[Dict[str, Dict[str, str]]] = None,
+    capture_counts: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> str:
     """Assemble the stable commit message format."""
     summary = _summary_line(status, result, result.duration_seconds, trigger)
@@ -126,5 +152,12 @@ def format_commit_message(
                 body.append(f"    {path}: {sha}")
             if len(items) > 50:
                 body.append(f"    (+{len(items) - 50} more)")
+    if capture_counts:
+        # Volatile per-run counts live HERE, never in the in-tree
+        # capture-health manifest (which must stay byte-stable so snapshot
+        # tree-dedupe keeps working). Matched-only by contract — see
+        # capture_health.format_counts.
+        from tests._capture import capture_health
+        body.extend(capture_health.format_counts(capture_counts))
     body.append(f"capture_version: {CAPTURE_VERSION}")
     return summary + "\n" + "\n".join(body) + "\n"

@@ -1,0 +1,79 @@
+name: Capture release readiness
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/_capture/**'
+      - 'tests/test_capture*'
+      - 'tests/test_preflight*'
+      - 'tests/test_create_assignment*'
+      - 'tests/test_ai_traces*'
+      - '.codex/**'
+      - '.claude/**'
+      - '.claude-student/**'
+      - '.cursor/**'
+      - '.githooks/**'
+      - 'tools/capture_release.py'
+      - 'tools/verify_integrity.py'
+      - 'tools/CAPTURE_RELEASE.json'
+      - 'tools/INTEGRITY_HASHES.txt'
+      - 'tools/preflight.py'
+      - 'run_tests.py'
+      - 'project-template-config.json'
+      - 'assignment-config.json'
+      - 'AI_POLICY.md'
+      - 'PROCESS_TRACKING.md'
+      - 'AGENTS.md'
+      - '.gitignore'
+      - 'docs/capture-release.md'
+      - 'create-assignment.*'
+      - '.github/workflows/capture-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CAPTURE_DISABLED: '1'
+      GIT_AUTHOR_NAME: Capture release CI
+      GIT_AUTHOR_EMAIL: capture-release@example.invalid
+      GIT_COMMITTER_NAME: Capture release CI
+      GIT_COMMITTER_EMAIL: capture-release@example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements.txt
+      - name: Verify the actual package
+        run: python tools/capture_release.py verify --json
+      - name: Capture, privacy, history and upload regressions
+        run: python -m pytest -o addopts= -q tests/test_capture_release_readiness.py tests/test_capture_hosted_release.py tests/test_ai_traces_codex_normalize.py tests/test_capture_health_evidence.py tests/test_capture_upload_health_regressions.py tests/test_capture_report_regressions.py tests/test_capture_validation_regressions.py tests/test_verify_integrity_mode.py tests/test_capture_sync_date_regressions.py tests/test_capture_smoke_regressions.py tests/test_capture_malformed_records.py tests/test_capture_sync_safety.py tests/test_capture_preflight_auth.py tests/test_preflight.py tests/test_capture_derivative_cache.py tests/test_capture_watchdog.py tests/test_capture_namespace.py tests/test_capture_aider_only.py tests/test_capture_runner_preservation.py tests/test_capture_hook_budget.py tests/test_capture_publication_guards.py tests/test_capture_snapshot_health.py tests/test_capture_post_commit_launcher.py
+      - name: Authoring generator leak and configuration regressions
+        if: runner.os != 'Windows' && hashFiles('create-assignment.sh') != ''
+        run: python -m pytest -o addopts= -q tests/test_create_assignment_leak_scan.py tests/test_create_assignment_config.py tests/test_create_assignment_literal_docs.py
+      - name: Native Windows generator literal documentation
+        if: runner.os == 'Windows' && hashFiles('create-assignment.ps1') != ''
+        run: python -m pytest -o addopts= -q tests/test_create_assignment_literal_docs.py -k pwsh
+      - name: Synthetic offline and two-checkout workflow
+        run: python tools/capture_release.py smoke --json
+      - name: Verify POSIX-generated artifact
+        if: runner.os != 'Windows' && hashFiles('create-assignment.sh') != ''
+        shell: bash
+        run: |
+          bash create-assignment.sh capture-generated-ci
+          python ../capture-generated-ci/tools/capture_release.py verify --json
+      - name: Verify Windows-generated artifact
+        if: runner.os == 'Windows' && hashFiles('create-assignment.ps1') != ''
+        shell: pwsh
+        run: |
+          ./create-assignment.ps1 capture-generated-ci
+          python ../capture-generated-ci/tools/capture_release.py verify --json
+          if ($LASTEXITCODE -ne 0) { throw "Generated package verification failed" }

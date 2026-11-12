@@ -15,8 +15,39 @@ from typing import Any, Iterable, List, Mapping, Optional
 
 
 AI_TRACES_DIR = ".ai-traces"
+SUPPORTED_ADAPTERS = frozenset({"codex", "claude", "cursor", "vscode_chat", "aider"})
 INTERACTION_STREAM = f"{AI_TRACES_DIR}/interaction-stream.jsonl"
 ATTESTATION_FILE = f"{AI_TRACES_DIR}/external-attestation.txt"
+
+# Single source of truth for the external-attestation seed text.
+#
+# Three code paths put this file on disk: create-assignment.sh (student
+# repo generation), bootstrap-reference.sh (reference-impl generation),
+# and ensure_attestation() below (regeneration after a student deletes
+# it). Both shell scripts read THIS constant -- see the
+# `attestation-seed` marker blocks there -- because AI_POLICY.md holds
+# students to the exact instruction spelled out in it, and a regenerated
+# copy that omitted the instruction meant the policy referred to text the
+# student had never seen. tests/test_attestation_template_parity.py
+# executes each script's seed block and compares against this constant,
+# so editing one side alone fails.
+ATTESTATION_TEMPLATE = """External AI tool usage attestation
+===================================
+
+If you used any AI tool that is NOT locally captured by this repo
+(ChatGPT in a browser, Claude.ai, GitHub Copilot Chat, etc.)
+during this assignment, log it here. One entry per session is enough;
+include the tool, what you asked, and what came back at a high level.
+
+Required entry format (one line per session, below the entries marker):
+  YYYY-MM-DD HH:MM | tool name | brief description of the interaction
+
+If you did NOT use any uncaptured AI tools during this assignment,
+write "no uncaptured AI use" below and nothing else.
+
+----- begin entries -----
+
+"""
 
 
 def adapter_dir(repo: Path, adapter_name: str) -> Path:
@@ -84,14 +115,7 @@ def ensure_attestation(repo: Path) -> Path:
     path = repo / ATTESTATION_FILE
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "External AI tool disclosures\n"
-            "\n"
-            "Use this file to disclose web/cloud AI interactions that are not "
-            "captured automatically by the local adapter hooks.\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        path.write_text(ATTESTATION_TEMPLATE, encoding="utf-8", newline="\n")
     return path
 
 

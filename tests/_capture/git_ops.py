@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,7 +22,7 @@ GIT_ENV = {
 }
 
 
-def run_git(args: List[str], cwd: Path, timeout: float = 15.0,
+def run_git(args: List[str], cwd: Path, timeout: float = 30.0,
             capture: bool = True) -> subprocess.CompletedProcess:
     """Run a git command with our safe env. Never raises on non-zero exit.
 
@@ -59,8 +60,16 @@ def push_auto_track_background(repo: Path, log_path: Path) -> None:
     avoid colliding with anything a student might do on a checkout-able
     branch — the local ref is never checked out.
     """
-    env = {**os.environ, **GIT_ENV}
-    if run_git(["remote", "get-url", "origin"], cwd=repo, timeout=5.0).returncode != 0:
+    env = {**os.environ, **GIT_ENV, "_CAPTURE_SUBPROCESS": "1"}
+    if run_git(["remote", "get-url", "origin"], cwd=repo, timeout=30.0).returncode != 0:
+        return
+    sha = read_auto_track_tip(repo)
+    if not sha:
+        return
+    from tests._capture import upload
+    try:
+        upload.write_receipt(repo, sha, "pending")
+    except (OSError, ValueError):
         return
     try:
         log_fh = open(log_path, "ab")
@@ -80,8 +89,8 @@ def push_auto_track_background(repo: Path, log_path: Path) -> None:
             kwargs["start_new_session"] = True
         try:
             subprocess.Popen(
-                ["git", "push", "origin",
-                 f"{AUTO_TRACK_REF}:refs/heads/auto-track"],
+                [sys.executable, str(Path(__file__).with_name("upload.py").resolve()),
+                 str(repo.resolve()), sha],
                 **kwargs,
             )
         except OSError:
@@ -92,7 +101,7 @@ def push_auto_track_background(repo: Path, log_path: Path) -> None:
 
 def is_git_repo(path: Path) -> bool:
     """True iff path is inside a git working tree."""
-    result = run_git(["rev-parse", "--is-inside-work-tree"], cwd=path, timeout=5.0)
+    result = run_git(["rev-parse", "--is-inside-work-tree"], cwd=path, timeout=30.0)
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
@@ -119,7 +128,7 @@ def diff_stats_trees(repo: Path, prev_tree: str, new_tree: str) -> DiffStats:
 
 def current_head_sha(repo: Path) -> Optional[str]:
     """Returns HEAD sha or None if unavailable."""
-    result = run_git(["rev-parse", "HEAD"], cwd=repo, timeout=5.0)
+    result = run_git(["rev-parse", "HEAD"], cwd=repo, timeout=30.0)
     if result.returncode == 0:
         return result.stdout.strip()
     return None
@@ -133,7 +142,7 @@ EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 def read_auto_track_tip(repo: Path) -> Optional[str]:
     """Returns the SHA of refs/auto-track/snapshots if the ref exists, else None."""
     result = run_git(["rev-parse", "--verify", AUTO_TRACK_REF],
-                     cwd=repo, timeout=5.0)
+                     cwd=repo, timeout=30.0)
     if result.returncode != 0:
         return None
     return result.stdout.strip()
@@ -159,7 +168,7 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     """
     local = read_auto_track_tip(repo)
     origin_result = run_git(["rev-parse", "--verify", AUTO_TRACK_ORIGIN_TIP_REF],
-                            cwd=repo, timeout=5.0)
+                            cwd=repo, timeout=30.0)
     origin = origin_result.stdout.strip() if origin_result.returncode == 0 else None
 
     if local is None and origin is None:
@@ -173,12 +182,12 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     # Both exist and differ — check ancestry
     local_in_origin = run_git(
         ["merge-base", "--is-ancestor", local, origin],
-        cwd=repo, timeout=5.0).returncode == 0
+        cwd=repo, timeout=30.0).returncode == 0
     if local_in_origin:
         return origin  # origin is ahead
     origin_in_local = run_git(
         ["merge-base", "--is-ancestor", origin, local],
-        cwd=repo, timeout=5.0).returncode == 0
+        cwd=repo, timeout=30.0).returncode == 0
     if origin_in_local:
         return local  # local is ahead
 
@@ -186,9 +195,15 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     # Record the dropped commits so the mirror can audit later.
     dropped = run_git(
         ["rev-list", f"{origin}..{local}"],
-        cwd=repo, timeout=5.0,
+        cwd=repo, timeout=30.0,
     )
     dropped_shas = dropped.stdout.split() if dropped.returncode == 0 else []
+    # Keep the offline fork reachable before reconciling with the remote.
+    # The next snapshot also parents it, so the remote archive retains it.
+    saved = run_git(["update-ref", f"refs/auto-track/recovered/{local}", local],
+                    cwd=repo, timeout=30.0)
+    if saved.returncode != 0:
+        return local
     try:
         with (repo / ".test-runs.log").open("a", encoding="utf-8") as f:
             f.write(
@@ -201,7 +216,7 @@ def pick_first_parent(repo: Path) -> Optional[str]:
     except OSError:
         pass
     run_git(["update-ref", AUTO_TRACK_REF, origin, local],
-            cwd=repo, timeout=5.0)
+            cwd=repo, timeout=30.0)
     return origin
 
 
@@ -250,13 +265,13 @@ def detect_git_state(repo: Path) -> str:
 def current_head_info(repo: Path) -> Tuple[str, Optional[str]]:
     """Returns (ref_name_or_'detached', sha_or_None_for_unborn)."""
     ref_result = run_git(["symbolic-ref", "--short", "HEAD"],
-                         cwd=repo, timeout=5.0)
+                         cwd=repo, timeout=30.0)
     if ref_result.returncode == 0:
         ref = ref_result.stdout.strip()
     else:
         ref = "detached"
     sha_result = run_git(["rev-parse", "--verify", "HEAD"],
-                         cwd=repo, timeout=5.0)
+                         cwd=repo, timeout=30.0)
     sha = sha_result.stdout.strip() if sha_result.returncode == 0 else None
     return ref, sha
 
@@ -280,7 +295,8 @@ def snapshot_to_auto_track(
     `unstage_after` (Task 2.5.10) are removed from the index after staging
     via `git rm --cached --ignore-unmatch` — defeats Attack L (accidental
     .codex/auth.json staging). Both are keyword-only and default to None;
-    the watchdog calls without them and that path is unchanged.
+    the watchdog passes only `unstage_after`, to keep unredacted trace
+    content out of its hang snapshot.
     """
     existing = [p for p in snapshot_paths if (repo / p).exists()]
     second_parent = head_sha
@@ -305,24 +321,43 @@ def snapshot_to_auto_track(
         expected_old = local_tip if local_tip else "0" * 40
         update_result = run_git(
             ["update-ref", AUTO_TRACK_REF, new_sha, expected_old],
-            cwd=repo, timeout=5.0,
+            cwd=repo, timeout=30.0,
         )
         if update_result.returncode == 0:
             return new_sha
     return None
 
 
-def preview_tree(repo: Path, snapshot_paths: List[str]) -> Optional[str]:
+def preview_tree(
+    repo: Path,
+    snapshot_paths: List[str],
+    *,
+    force_paths: Optional[List[str]] = None,
+    unstage_after: Optional[List[str]] = None,
+) -> Optional[str]:
     """Build a tree object from snapshot_paths against a per-PID temp index
     WITHOUT committing or updating any ref. Returns the tree SHA, or None on
     failure. Used for tree-SHA dedupe in the orchestrator.
 
-    Mirrors the read-tree+add+write-tree portion of _build_and_commit. The
-    temp index file is unique per call (uses os.getpid() + a small random
-    suffix) so it never collides with a concurrent snapshot's index.
+    Mirrors the read-tree+add+write-tree portion of _build_and_commit --
+    INCLUDING its force_paths / unstage_after handling. That mirroring is
+    load-bearing: a gitignored force-path (aider's `.aider*`) passed to a
+    plain `git add -A` makes git exit 1, which used to make this function
+    return None for every aider user. A None preview disables tree-SHA
+    dedupe outright (so identical trees get a fresh commit on every
+    trigger) and makes the caller's diff stats compare against the empty
+    tree. Any divergence between this staging sequence and
+    `_build_and_commit`'s also silently breaks dedupe by producing a
+    different tree than the one actually committed.
+
+    The temp index file is unique per call (uses os.getpid() + a small
+    random suffix) so it never collides with a concurrent snapshot's index.
     """
     import secrets
-    existing = [p for p in snapshot_paths if (repo / p).exists()]
+    force_set = set(force_paths or [])
+    existing = [p for p in snapshot_paths
+                if p not in force_set and (repo / p).exists()]
+    existing_force = [p for p in (force_paths or []) if (repo / p).exists()]
     suffix = f"{os.getpid()}.preview.{secrets.token_hex(4)}"
     idx_path = repo / ".git" / f"auto-track.idx.{suffix}"
     env = {**os.environ, **GIT_ENV, "GIT_INDEX_FILE": str(idx_path)}
@@ -340,6 +375,22 @@ def preview_tree(repo: Path, snapshot_paths: List[str]) -> Optional[str]:
             )
             if ar.returncode != 0:
                 return None
+        if existing_force:
+            fr = subprocess.run(
+                ["git", "add", "-Af", "--", *existing_force],
+                cwd=str(repo), env=env, capture_output=True, text=True, timeout=30,
+            )
+            if fr.returncode != 0:
+                return None
+        for p in (unstage_after or []):
+            try:
+                subprocess.run(
+                    ["git", "rm", "-r", "--cached", "--ignore-unmatch", "--", p],
+                    cwd=str(repo), env=env, capture_output=True, text=True,
+                    timeout=10,
+                )
+            except (subprocess.TimeoutExpired, OSError):
+                continue
         wt = subprocess.run(
             ["git", "write-tree"],
             cwd=str(repo), env=env, capture_output=True, text=True, timeout=10,
@@ -432,8 +483,9 @@ def _build_and_commit(
                             )
                         except OSError:
                             pass
+                        return None
                 except (subprocess.TimeoutExpired, OSError):
-                    continue
+                    return None
 
         # Step 8: write tree
         wt = subprocess.run(["git", "write-tree"],
@@ -451,6 +503,17 @@ def _build_and_commit(
             commit_args += ["-p", first_parent]
         if second_parent:
             commit_args += ["-p", second_parent]
+        recovered = run_git(["for-each-ref", "--format=%(objectname)",
+                             "refs/auto-track/recovered/"], cwd=repo, timeout=30.0)
+        if recovered.returncode != 0:
+            return None
+        for parent in recovered.stdout.split() if recovered.returncode == 0 else []:
+            if parent in {first_parent, second_parent}:
+                continue
+            if first_parent and run_git(["merge-base", "--is-ancestor", parent, first_parent],
+                                        cwd=repo, timeout=30.0).returncode == 0:
+                continue
+            commit_args += ["-p", parent]
         commit_args += ["-F", "-"]
         ct = subprocess.run(["git", *commit_args],
                             cwd=str(repo), env=env, input=message,

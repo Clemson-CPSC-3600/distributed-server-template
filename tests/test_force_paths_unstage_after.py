@@ -238,14 +238,14 @@ def test_orchestrator_unions_paths_across_adapters(
     orchestrator.take_snapshot(
         tmp_git_repo_with_capture, trigger="pytest",
         pytest_session_id="union-1")
-    assert captured["force_paths"] == sorted({".shared", ".a-only", ".b-only"})
+    assert captured["force_paths"] == sorted({
+        ".shared", ".a-only", ".b-only", ".ai-traces/capture-health.json"})
     assert captured["unstage_after"] == sorted({".shared/x", ".b-only/y"})
 
 
-def test_orchestrator_force_paths_default_to_empty(
+def test_orchestrator_without_adapter_overrides_still_forces_health(
         tmp_git_repo_with_capture, monkeypatch):
-    """Adapter without force_paths/unstage_after methods → empty lists
-    threaded through, no crash."""
+    """Optional adapter overrides stay empty; mandatory health is retained."""
     captured = {}
 
     def spy(repo, msg, paths, head_ref, head_sha,
@@ -259,5 +259,5 @@ def test_orchestrator_force_paths_default_to_empty(
     orchestrator.take_snapshot(
         tmp_git_repo_with_capture, trigger="manual",
         pytest_session_id=None)
-    assert captured["force_paths"] == []
+    assert captured["force_paths"] == [".ai-traces/capture-health.json"]
     assert captured["unstage_after"] == []

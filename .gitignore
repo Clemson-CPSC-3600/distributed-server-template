@@ -206,6 +206,10 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Gradescope autograder build artifact (regenerate with
+# build-gradescope-autograder.sh; never commit the zip)
+autograder.zip
+
 # Development trace capture — runtime state, never committed
 .test-run-state/
 .test-runs.log
@@ -213,7 +217,20 @@ __marimo__/
 # Claude Code session-local state: observer logs, observations, ephemeral
 # plans, scheduled-task locks, machine-specific settings. Not shared across
 # instructor checkouts.
-.claude/
+#
+# Ignore .claude contents by default, then re-include the parts that are
+# shared instructor tooling: agent definitions, hooks, skills, and the
+# project-level hook wiring. Git cannot re-include a file whose parent
+# directory is excluded, so this must be `.claude/*` and not `.claude/` for
+# the negations to have any effect. Without them a file added under
+# .claude/skills/ is silently untracked — present locally, absent from a
+# fresh clone — which is how the project-design skill first landed.
+# settings.local.json stays ignored: it is machine-specific.
+.claude/*
+!.claude/agents/
+!.claude/hooks/
+!.claude/skills/
+!.claude/settings.json
 
 # Git worktrees created for isolated feature development. Worktree contents
 # should never be tracked — each worktree has its own branch.
@@ -223,18 +240,32 @@ __marimo__/
 # Per-session ephemera; nothing here belongs in shared history.
 .superpowers/
 
+# Raw (unredacted) AI transcripts. Hooks and ingest write verbatim vendor
+# artifacts here; the capture layer then commits a REDACTED derivative at
+# .ai-traces/<tool>/redacted/ (see tests/_capture/redaction.py and
+# AI_POLICY.md). This pattern is `.ai-traces/*/raw/` and NOT `.ai-traces/`:
+# heartbeat/, redacted/, normalized/ and capture-health.json must stay
+# committed, or the "evidence but no heartbeat" signal disappears.
+.ai-traces/*/raw/
+
 # Codex CLI credentials -- never commit OpenAI tokens. AI trace JSONL files
 # under .ai-traces/ ARE committed by design (see PROCESS_TRACKING.md and
-# AI_POLICY.md). .codex/config.toml and .codex/hooks/ are also committed
-# because they are shipped by the instructor. This single exclusion protects
-# only the auth blob.
+# AI_POLICY.md). .codex/config.toml, .codex/hooks.json and .codex/hooks/ are
+# also committed because they are shipped (and hash-pinned) by the
+# instructor. This single exclusion protects only the auth blob.
 .codex/auth.json
 
-# CRC test harness ephemeral output. CRCTestManager redirects each scenario's
-# stdout to Logs/<scenario>.log, and servers/clients may emit per-host
-# --log-file output to a Logs/ directory beside their own source. None of this
-# belongs in shared history. (The golden reference logs live, tracked, in
-# crc_support/correct_logs/.)
+# Aider CLI transcript files (.aider.chat.history.md, .aider.input.history)
+# and its repo-map cache directory (.aider.tags.cache.v3/). Pre-adding this
+# pattern means aider's own auto-append-to-.gitignore behavior is a no-op
+# (aider skips the append when a matching pattern already exists), so aider
+# users never mutate this pinned file and trip the integrity check. The
+# chat/input history files are still captured into auto-track snapshots via
+# the aider adapter's force_paths() -- see tests/_capture/agent_adapters/aider.py.
+.aider*
+
+# Preserve course-project runtime output exclusions. Golden reference logs
+# under crc_support/correct_logs/ remain tracked.
 Logs/
 src/Logs/
 crc_support/Logs/

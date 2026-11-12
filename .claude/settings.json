@@ -1,0 +1,95 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" session_start >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" user_prompt_submit >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" pre_tool_use >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" post_tool_use >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" pre_compact >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" stop >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" stop >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'r=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; py=$(command -v python3 || command -v python || true); if [ -n \"$py\" ]; then \"$py\" \"$r/.claude/hooks/_run.py\" session_end >/dev/null 2>&1; fi; exit 0'",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

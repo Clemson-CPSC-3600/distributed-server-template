@@ -110,7 +110,9 @@ def test_normalize_slash_command_detected(tmp_path):
     _write_session(repo, "s3", [
         {"type": "user",
          "message": {"role": "user",
-                     "content": "<command-name>review</command-name>\n<args>PR123</args>"},
+                     "content": "<command-name>review</command-name>\n"
+                                "<command-message>review</command-message>\n"
+                                "<command-args>PR123</command-args>"},
          "cwd": "/repo", "sessionId": "s3", "timestamp": "2026-05-09T01:00:00Z"},
     ])
 
